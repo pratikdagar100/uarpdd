@@ -1,0 +1,21 @@
+# Data & trained artifacts (large / regenerated)
+data/*.csv
+data/*.xlsx
+data/*.parquet
+data/study.db
+models/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local tool settings
+.claude/
