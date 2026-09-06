@@ -3,6 +3,9 @@ data/*.csv
 data/*.xlsx
 data/*.parquet
 data/study.db
+
+# ...but ship the default dataset with the repo
+!data/dataset.xlsx
 models/
 
 # Python

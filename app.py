@@ -99,10 +99,11 @@ state = _bootstrap()
 
 if state.get("error") == "no_dataset":
     _sidebar(None)
-    T.page_header("No dataset found", "Add a historical weather dataset",
-                  "The pipeline inspects the columns automatically — it "
-                  "needs at least a date column and a rainfall column; a "
-                  "station column is strongly recommended.", None, cfg)
+    T.page_header("No dataset found")
+    st.markdown("Add a historical weather dataset. The pipeline inspects "
+                "the columns automatically — it needs at least a date "
+                "column and a rainfall column; a station column is "
+                "strongly recommended.")
     st.markdown(f'<div class="strip">Place a file at '
                 f'<code>{DATA_DIR / "dataset.csv"}</code> (CSV, Parquet or '
                 f'XLSX) or upload it below.</div>', unsafe_allow_html=True)
