@@ -26,6 +26,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
 
 from .config import AppConfig, MODELS_DIR
+from .runtime import joblib_workers
 from .uncertainty import conformal_qhat, empirical_coverage, avg_set_size
 
 BUNDLE_PATH = MODELS_DIR / "rainfall_bundle.joblib"
@@ -116,7 +117,7 @@ def _candidate_models(cfg: AppConfig) -> dict:
             max_depth=cfg.max_depth,
             min_samples_split=cfg.min_samples_split,
             min_samples_leaf=cfg.min_samples_leaf,
-            n_jobs=-1,
+            n_jobs=joblib_workers(),
             random_state=cfg.random_state,
             class_weight="balanced_subsample",
         ),

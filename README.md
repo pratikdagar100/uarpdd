@@ -316,9 +316,14 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-On Windows you can also just double-click **`run.bat`** in the project
-folder, which creates a private virtual environment, installs the
-requirements when they change, starts the server and opens the browser.
+Or use the launcher for your platform, which creates a private virtual
+environment, installs the requirements when they change, starts the server
+and opens the browser:
+
+| Platform | Launcher |
+| --- | --- |
+| macOS / Linux | `./run.sh` |
+| Windows | double-click **`run.bat`** |
 
 Python ≥ 3.10. On first run the app loads the dataset, inspects and cleans
 it, builds the target and features, trains and calibrates the models,
@@ -327,6 +332,20 @@ minutes for ~1M rows). All artifacts are cached in `models/`; subsequent
 starts load in seconds. If `data/` is empty the app shows an upload prompt.
 
 A headless end-to-end check is available: `python scripts/smoke_test.py`.
+
+### Apple Silicon thread sizing
+
+`src/runtime.py` sizes the numeric stack's thread pools for the host. The
+two pools want opposite things on Apple Silicon, so it splits them:
+HistGradientBoosting is OpenMP code with a barrier at every split and is
+~25% faster confined to the performance cores, while a random forest fits
+independent trees and loses ~45% when cut to the same four workers. So the
+OpenMP/BLAS pools get the performance cores and joblib keeps every logical
+CPU. The module documents the measurements behind those numbers. Other
+platforms are left on the library defaults.
+
+Set `OMP_NUM_THREADS` yourself to override; the module never replaces a
+thread count you chose.
 
 ### Dataset read cache
 
@@ -357,6 +376,7 @@ everything from `data/dataset.xlsx`.
 │   └── config.json
 ├── src/
 │   ├── config.py           # all configurable knobs + physical bounds
+│   ├── runtime.py          # thread-pool sizing for the host machine
 │   ├── data_loader.py      # loading, inspection, auto column mapping
 │   ├── live_weather.py     # live current conditions for real-time forecasts
 │   ├── preprocessing.py    # cleaning, dedup, invalid values, imputation
@@ -371,6 +391,7 @@ everything from `data/dataset.xlsx`.
 │   └── pipeline.py         # first-run orchestration + caching
 ├── views/                  # Streamlit tab renderers + shared theme
 ├── notebooks/exploration.ipynb
+├── run.sh                  # macOS / Linux launcher
 ├── run.bat                 # Windows double-click launcher
 ├── scripts/smoke_test.py
 ├── requirements.txt

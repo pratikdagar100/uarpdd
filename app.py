@@ -4,12 +4,18 @@ Run with:  streamlit run app.py
 """
 from __future__ import annotations
 
-import streamlit as st
+# Must precede every numpy/scikit-learn/streamlit import: OpenMP reads
+# its thread count once, when the runtime loads.
+from src.runtime import configure_runtime
 
-from src.config import AppConfig, DATA_DIR
-from src.pipeline import run_pipeline
-from views import theme as T
-from views import (warning, dashboard, explorer, performance, training,
+configure_runtime()
+
+import streamlit as st  # noqa: E402
+
+from src.config import AppConfig, DATA_DIR  # noqa: E402
+from src.pipeline import run_pipeline  # noqa: E402
+from views import theme as T  # noqa: E402
+from views import (warning, dashboard, explorer, performance, training,  # noqa: E402
                    study_run, study_results, about)
 
 st.set_page_config(page_title="Heavy Rainfall Early Warning System",
