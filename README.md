@@ -317,7 +317,8 @@ streamlit run app.py
 ```
 
 On Windows you can also just double-click **`run.bat`** in the project
-folder, which does the same thing.
+folder, which creates a private virtual environment, installs the
+requirements when they change, starts the server and opens the browser.
 
 Python ≥ 3.10. On first run the app loads the dataset, inspects and cleans
 it, builds the target and features, trains and calibrates the models,
@@ -326,6 +327,20 @@ minutes for ~1M rows). All artifacts are cached in `models/`; subsequent
 starts load in seconds. If `data/` is empty the app shows an upload prompt.
 
 A headless end-to-end check is available: `python scripts/smoke_test.py`.
+
+### Dataset read cache
+
+The shipped dataset is a 62 MB `.xlsx`, which pandas parses cell by cell
+(~41 s). The first read is mirrored to
+`models/raw_cache_<fingerprint>.parquet` and every later read comes from
+there (~2 s), so rebuilding after a config change no longer pays the
+spreadsheet cost — a full retrain drops from ~68 s to ~27 s.
+
+The sidecar is a cache, not a dataset: it is keyed by the same fingerprint
+that invalidates the model cache, it lives outside `data/` so the dataset
+auto-detection never sees it, and it is rewritten from the source file if it
+is ever missing or unreadable. Delete `models/` at any time to rebuild
+everything from `data/dataset.xlsx`.
 
 ## Project structure
 
@@ -337,6 +352,7 @@ A headless end-to-end check is available: `python scripts/smoke_test.py`.
 ├── models/                 # cached artifacts (created on first run)
 │   ├── rainfall_bundle.joblib   # model + calibrator + conformal q̂ + metadata
 │   ├── processed_features.parquet
+│   ├── raw_cache_<fingerprint>.parquet  # fast re-read of the source dataset
 │   ├── evaluation.joblib
 │   └── config.json
 ├── src/

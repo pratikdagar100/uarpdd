@@ -1,11 +1,20 @@
 @echo off
 setlocal
-REM Uncertainty-Aware Rainfall Prediction & Decision Dashboard
+REM Heavy Rainfall Early Warning System -- Windows launcher.
 REM Double-click this file to start the app. It installs everything it
 REM needs on first run, then opens the dashboard in your browser.
 
 cd /d "%~dp0"
-title Rainfall Uncertainty Lab
+title Heavy Rainfall Early Warning
+
+REM The pipeline's progress messages contain non-ASCII characters, which
+REM the console's default codepage cannot encode -- printing one raises
+REM UnicodeEncodeError and kills the run. UTF-8 everywhere avoids it.
+chcp 65001 >nul 2>&1
+set "PYTHONUTF8=1"
+
+if "%PORT%"=="" set "PORT=8501"
+set "URL=http://localhost:%PORT%"
 
 REM ---------------------------------------------------------- find Python
 set "PY="
@@ -49,12 +58,19 @@ if errorlevel 1 (
 
 REM ------------------------------------------------------------- run app
 echo.
-echo Starting the Rainfall Uncertainty Lab dashboard...
-echo The browser will open at http://localhost:8501
+echo Starting the Heavy Rainfall Early Warning dashboard...
+echo The browser will open at %URL%
 echo Keep this window open. Press Ctrl+C here to stop the app.
 echo.
 
-"%VPY%" -m streamlit run app.py --server.port 8501
+REM .streamlit\config.toml runs the server headless, so it will not open a
+REM browser itself. Poll in the background and open one once the server is
+REM actually accepting connections.
+REM Kept to one line and free of pipes: cmd parses `|` and `^` before it
+REM hands the string to PowerShell, so both would need escaping here.
+start "" /b powershell -NoProfile -ExecutionPolicy Bypass -Command "for($i=0; $i -lt 90; $i++){ try{ $null = Invoke-WebRequest -UseBasicParsing -Uri '%URL%' -TimeoutSec 2; Start-Process '%URL%'; break } catch { Start-Sleep -Seconds 1 } }"
+
+"%VPY%" -m streamlit run app.py --server.port %PORT%
 
 if errorlevel 1 (
   echo.

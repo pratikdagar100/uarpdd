@@ -81,7 +81,8 @@ def run_pipeline(cfg: AppConfig, progress=None, force_retrain: bool = False
         feature_cols = meta["feature_cols"]
     else:
         _report(0.02, f"Loading dataset {dataset_path.name}…")
-        raw = load_raw(dataset_path)
+        raw = load_raw(dataset_path, cache_dir=MODELS_DIR,
+                       fingerprint=fingerprint)
         _report(0.08, "Inspecting dataset structure…")
         mapping = auto_map_columns(raw)
         mapping.update({k: v for k, v in load_mapping_override().items()

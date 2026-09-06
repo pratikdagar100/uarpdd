@@ -7,6 +7,7 @@ needs. A manual override is exposed in the UI (Training & Config tab).
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 from pathlib import Path
 
@@ -35,6 +36,8 @@ ROLE_PATTERNS: dict[str, list[str]] = {
     "month":      [r"^month$"],
     "rain_tomorrow": [r"rain_?tomorrow"],
 }
+
+SPREADSHEET_SUFFIXES = (".xlsx", ".xls")
 
 NUMERIC_ROLES = [
     "rainfall", "avg_temp", "min_temp", "max_temp", "wind_speed",
@@ -68,15 +71,90 @@ def dataset_fingerprint(path: Path) -> str:
     return h.hexdigest()
 
 
-def load_raw(path: Path) -> pd.DataFrame:
-    suffix = path.suffix.lower()
+def _read_any(path: Path, suffix: str) -> pd.DataFrame:
     if suffix == ".csv":
         return pd.read_csv(path, low_memory=False)
     if suffix == ".parquet":
         return pd.read_parquet(path)
-    if suffix in (".xlsx", ".xls"):
+    if suffix in SPREADSHEET_SUFFIXES:
         return pd.read_excel(path)
     raise ValueError(f"Unsupported dataset format: {suffix}")
+
+
+def _raw_cache_path(cache_dir: Path, fingerprint: str) -> Path:
+    return cache_dir / f"raw_cache_{fingerprint[:16]}.parquet"
+
+
+def _discard(path: Path) -> None:
+    """Delete a cache file, tolerating a refusal.
+
+    Windows refuses to unlink a file another process still has open, and a
+    cache we merely failed to tidy up is never worth failing a run over.
+    """
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def _prune_raw_cache(cache_dir: Path, keep: Path) -> None:
+    """One sidecar at a time.
+
+    Sidecars for older datasets are dead weight, and the glob deliberately
+    covers the `.tmp` staging files too: a process killed mid-write leaves
+    one behind, and nothing else would ever collect it.
+    """
+    for old in cache_dir.glob("raw_cache_*"):
+        if old != keep:
+            _discard(old)
+
+
+def load_raw(path: Path, cache_dir: Path | None = None,
+             fingerprint: str | None = None) -> pd.DataFrame:
+    """Read the dataset, optionally through a Parquet sidecar cache.
+
+    A spreadsheet is decompressed and parsed cell by cell: this project's
+    62 MB / 970k-row dataset.xlsx takes ~41 s to read, against ~2 s for the
+    same frame written as Parquet. When a cache directory and fingerprint
+    are given, the first read of a spreadsheet is mirrored to a sidecar and
+    every later read comes from there.
+
+    The sidecar is a cache, not a dataset: `dataset_fingerprint` still
+    hashes the original file, so downstream cache invalidation is unchanged,
+    and `find_dataset` never sees it because it lives outside data/.
+    """
+    suffix = path.suffix.lower()
+    use_cache = (cache_dir is not None and fingerprint is not None
+                 and suffix in SPREADSHEET_SUFFIXES)
+    cached = _raw_cache_path(cache_dir, fingerprint) if use_cache else None
+
+    if cached is not None:
+        # Prune on every call, not just on a write: a hit would otherwise
+        # let a superseded dataset's sidecar sit there indefinitely.
+        _prune_raw_cache(cache_dir, keep=cached)
+
+    if cached is not None and cached.exists():
+        try:
+            return pd.read_parquet(cached)
+        except Exception:
+            # A truncated or unreadable sidecar must never be fatal --
+            # drop it and fall through to the real file.
+            _discard(cached)
+
+    df = _read_any(path, suffix)
+
+    if cached is not None:
+        try:
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            # PID-tagged staging name: two app instances starting together
+            # must not write the same temporary file, which on Windows fails
+            # outright rather than interleaving.
+            tmp = cached.with_name(f"{cached.name}.{os.getpid()}.tmp")
+            df.to_parquet(tmp)
+            tmp.replace(cached)  # atomic, so a crash cannot leave a half file
+        except Exception:
+            pass  # caching is best-effort; a failure only costs time
+    return df
 
 
 def auto_map_columns(df: pd.DataFrame) -> dict[str, str | None]:

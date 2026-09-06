@@ -1,0 +1,19 @@
+# Normalise to LF in the repository; check out per-file as each platform's
+# tools expect. cmd.exe is the reason this file exists: it is byte-oriented
+# and not reliably LF-tolerant, so batch and PowerShell files must arrive
+# with CRLF on Windows.
+* text=auto eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+*.sh  text eol=lf
+
+# Never line-ending-normalise these -- it would corrupt them.
+*.xlsx   binary
+*.xls    binary
+*.pptx   binary
+*.parquet binary
+*.joblib binary
+*.db     binary

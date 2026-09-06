@@ -7,6 +7,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+# The pipeline reports progress with non-ASCII characters. A Windows console
+# on a legacy codepage cannot encode them, and print() would end the run with
+# UnicodeEncodeError -- degrade the characters rather than fail.
+try:
+    sys.stdout.reconfigure(errors="replace")
+except (AttributeError, OSError):
+    pass
+
 from src.config import AppConfig
 from src.pipeline import run_pipeline
 from src.predict import predict_one, feature_influence
