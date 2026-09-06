@@ -368,7 +368,6 @@ def _influence_card(bundle, row_series, train_stats) -> None:
     st.markdown(
         f'<div class="uar-card"><div style="display:flex;'
         f'justify-content:space-between"><b>Model feature influence</b>'
-        f'<span style="font-size:0.74rem;color:{T.MUTED}">not causal</span>'
         f'</div>'
         f'<div style="height:0.4rem"></div>' + "".join(rows_html)
         + "</div>", unsafe_allow_html=True)
@@ -393,4 +392,4 @@ def _prob_bars(pred: dict, cfg: AppConfig) -> str:
             + bar("RAIN", pred["p_rain"], T.BLUE)
             + f'<div style="font-size:0.72rem;color:{T.MUTED};'
               f'text-align:center">threshold '
-              f'{cfg.classification_threshold:.0%} (configurable)</div></div>')
+              f'{cfg.classification_threshold:.0%}</div></div>')

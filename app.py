@@ -9,16 +9,17 @@ import streamlit as st
 from src.config import AppConfig, DATA_DIR
 from src.pipeline import run_pipeline
 from views import theme as T
-from views import (dashboard, explorer, performance, training, study_run,
-                   study_results, about)
+from views import (warning, dashboard, explorer, performance, training,
+                   study_run, study_results, about)
 
-st.set_page_config(page_title="Uncertainty-Aware Rainfall Prediction",
+st.set_page_config(page_title="Heavy Rainfall Early Warning System",
                    layout="wide", initial_sidebar_state="expanded")
 T.inject_css()
 
 cfg = AppConfig.load()
 
 PAGES = [
+    ("Early warning board", warning.render),
     ("Prediction dashboard", dashboard.render),
     ("Dataset explorer", explorer.render),
     ("Model performance", performance.render),
@@ -59,8 +60,8 @@ def _sidebar(state: dict | None) -> str:
     with st.sidebar:
         st.markdown("""
 <div class="sb-brand">
-  <div class="sb-logo">RU</div>
-  <div class="sb-name">Rainfall<br>Uncertainty Lab</div>
+  <div class="sb-logo">EW</div>
+  <div class="sb-name">Heavy Rainfall<br>Early Warning</div>
 </div>""", unsafe_allow_html=True)
 
         if state and "features" in state:

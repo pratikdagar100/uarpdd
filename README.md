@@ -1,22 +1,44 @@
-# Uncertainty-Aware Rainfall Prediction & Decision Dashboard
+# Heavy Rainfall Early Warning & Inundation Prediction System
 
-> Communicating what the model predicts — and how uncertain it is.
+> AI/ML-based heavy rainfall early warning with quantified uncertainty and
+> inundation risk — for Smart India Hackathon problem statement **26071**.
 
-An academic research project that (1) predicts whether **significant rainfall
-(≥ 2.5 mm)** will occur **tomorrow** at Indian weather stations, (2) quantifies
-the uncertainty of every prediction with **split conformal prediction**, and
-(3) runs a **controlled human-subject experiment** testing whether showing
-uncertainty changes user decisions and improves decision quality.
+| | |
+|---|---|
+| **Problem Statement ID** | 26071 |
+| **Title** | AI/ML-Based Integrated heavy rainfall Early Warning and Inundation Prediction System using Satellite, Radar, observational Weather and numerical weather prediction model data |
+| **Organization** | Ministry of Earth Sciences (MoES) |
+| **Department** | India Meteorological Department |
+| **Category / Theme** | Software · Disaster Management |
 
-## Problem statement & motivation
+The system (1) predicts whether **significant rainfall (≥ 2.5 mm)** will
+occur **tomorrow** at Indian weather stations from an ML pipeline trained on
+historical observations, (2) quantifies the uncertainty of every prediction
+with **calibrated probabilities and split conformal prediction**, (3) issues
+an **IMD-style colour-coded early warning (Green / Yellow / Orange / Red)**
+and an **inundation risk band** per station, and (4) includes a
+**controlled human-subject experiment** testing whether communicating
+uncertainty improves warning-based decisions.
 
-Weather apps usually show a single point prediction ("Rain: 78%"). Decision
-makers, however, act under uncertainty: whether to plan an outdoor event
-depends not only on the most likely outcome but on how strongly the model can
-rule out the alternative. Poorly communicated uncertainty leads to
-overconfident or overly conservative decisions. This project builds an
-interface that communicates prediction uncertainty rather than only a point
-prediction, and evaluates its effect on human decisions in a controlled study.
+## Why uncertainty-aware warnings
+
+An early warning is a decision aid: whether a district activates its
+response depends not only on the most likely outcome but on how strongly
+the model can rule out the alternative. Poorly communicated uncertainty
+leads to overconfident or overly conservative decisions — costly in both
+directions during heavy-rainfall events. This system therefore reports a
+calibrated probability, a conformal prediction set with a coverage
+guarantee, and a documented warning matrix, and evaluates the human side
+in a controlled study.
+
+## Data source integration (per the problem statement)
+
+| Source | Status | How |
+|---|---|---|
+| Observational weather | ✅ implemented | Historical station dataset (~1M daily records, 406 stations) the model trains on |
+| NWP model data | ✅ implemented | Live current conditions from the Open-Meteo feed, which serves operational NWP model output for each station's coordinates (`src/live_weather.py`) |
+| Satellite (INSAT-3D/3DR) | 🔜 roadmap | Ingest channel; the auto-detecting feature pipeline accepts extra columns (e.g. IR brightness temperature) without model-layer changes |
+| Doppler weather radar | 🔜 roadmap | Same pluggable ingest path (e.g. reflectivity-derived rain-rate features) |
 
 ## Research question
 
@@ -145,14 +167,53 @@ calibrated probability of the predicted class (defaults: 50–59% LOW,
 60–74% MODERATE, 75–89% HIGH, ≥90% VERY HIGH — configurable), clearly
 labelled as a heuristic indicator, not a formal guarantee.
 
-## Dashboard — "Rainfall Uncertainty Lab"
+## Early warning & inundation risk (`src/warning.py`)
+
+The warning layer turns the calibrated model output into actionable,
+IMD-aligned guidance per station:
+
+- **IMD 24-h rainfall intensity categories** — light (2.5–15.5 mm),
+  moderate (15.6–64.4), heavy (64.5–115.5), very heavy (115.6–204.4),
+  extremely heavy (≥ 204.5).
+- **Heavy-rain potential** — for the target date, the 90th percentile of
+  wet-day rainfall within ±15 days of that day-of-year across all years at
+  the station: "if it does rain, how heavy can it plausibly be right now".
+- **Warning level** — a documented decision matrix over the calibrated
+  probability *p* and the potential *q90*, mirroring IMD's colour code
+  (Green *No action* · Yellow *Be updated* · Orange *Be prepared* · Red
+  *Take action*):
+
+  | Level | Condition |
+  |---|---|
+  | RED | p ≥ 0.70 & q90 ≥ 115.6 mm, or p ≥ 0.85 & q90 ≥ 64.5 mm |
+  | ORANGE | p ≥ 0.60 & q90 ≥ 64.5 mm, or p ≥ 0.80 & q90 ≥ 15.6 mm |
+  | YELLOW | p ≥ classification threshold, or ambiguous conformal set & q90 ≥ 64.5 mm |
+  | GREEN | otherwise |
+
+- **Inundation risk index** — 0.45 × saturation percentile (current
+  7-day rainfall accumulation ranked against the station's own history, a
+  soil-saturation/drainage-load proxy) + 0.35 × p + 0.20 × q90 scaled to
+  the extremely-heavy threshold; banded LOW / MODERATE / HIGH / SEVERE.
+  A screening indicator for response prioritisation, honestly labelled —
+  not a terrain-based hydrological inundation model (that is on the
+  roadmap).
+
+## Dashboard — Heavy Rainfall Early Warning System
 
 `streamlit run app.py` opens the app: a dark-navy sidebar shell (brand,
-dataset stats, navigation, cached-pipeline footer) with seven pages,
+dataset stats, navigation, cached-pipeline footer) with eight pages,
 following the approved UI design proposal. Pages can be deep-linked with
 `?page=<name>` (e.g. `?page=Model performance`).
 
-1. **Prediction dashboard** — two forecast modes:
+1. **Early warning board** (landing page) — sweeps the monitored stations,
+   forecasts tomorrow for each from live conditions (climatology fallback,
+   always labelled), and shows: summary tiles counting stations per warning
+   level, an India map with stations coloured by warning level, ranked
+   station cards (warning colour, rain probability, conformal set,
+   heavy-rain potential with IMD intensity category, 7-day antecedent
+   rainfall percentile, inundation band and advice), and a methodology
+   expander with the full warning matrix.
+2. **Prediction dashboard** — two forecast modes:
    * **Tomorrow (default)** — a genuine forecast for the real calendar
      tomorrow. The model *learns* from the historical dataset; today's
      conditions are fetched live from the [Open-Meteo](https://open-meteo.com)
@@ -176,28 +237,28 @@ following the approved UI design proposal. Pages can be deep-linked with
    conditions tiles; per-prediction *model feature influence* rows (labelled
    heuristic, not causal); and rainfall/temperature/pressure history plus
    monthly climatology charts.
-2. **Dataset explorer** — stat tiles (rows, columns, date range, stations,
+3. **Dataset explorer** — stat tiles (rows, columns, date range, stations,
    rain/no-rain days), automatic column-mapping table, preprocessing report
    with every step counted, train/validation/test split strip, filtered
    record browser with CSV download, target-distribution charts.
-3. **Model performance** — metric tiles (accuracy, precision, recall, F1,
+4. **Model performance** — metric tiles (accuracy, precision, recall, F1,
    ROC-AUC, Brier), confusion-matrix tiles, ROC & calibration curves, class
    distribution, conformal diagnostics (target vs empirical coverage, set
    size, ambiguity share), validation-only model comparison, full
    classification report, impurity + permutation importance. All values
    computed from the real test set.
-4. **User study** — the controlled experiment (below), with a start screen
+5. **User study** — the controlled experiment (below), with a start screen
    (steps + what-each-condition-shows preview), scenario cards, progress
    bar and outcome feedback strips.
-5. **Study results** — condition-comparison cards, accuracy/time charts,
+6. **Study results** — condition-comparison cards, accuracy/time charts,
    confidence-calibration chart, decision-change card, statistical-analysis
    cards, demo-data management, raw decision log. Shows a "No study data
    collected yet" empty state until real decisions exist.
-6. **Training & config** — thresholds, split fractions with a test-fraction
+7. **Training & config** — thresholds, split fractions with a test-fraction
    visual, RF hyperparameters, confidence-band preview strip, conformal
    coverage, column-mapping override, retrain buttons and the
    trained-artifacts table.
-7. **About** — research-question banner, pipeline chips, key definitions,
+8. **About** — research-question banner, pipeline chips, key definitions,
    limitations, future improvements and quick-reference cards.
 
 A slide deck explaining the whole project (what it uses, how it works,
@@ -271,7 +332,7 @@ A headless end-to-end check is available: `python scripts/smoke_test.py`.
 ```
 ├── app.py                  # Streamlit entry point (tabs, first-run pipeline)
 ├── data/
-│   ├── dataset.csv         # the weather dataset (auto-detected schema)
+│   ├── dataset.xlsx        # the weather dataset, shipped (auto-detected schema)
 │   └── study.db            # SQLite decision log (created on first decision)
 ├── models/                 # cached artifacts (created on first run)
 │   ├── rainfall_bundle.joblib   # model + calibrator + conformal q̂ + metadata
@@ -286,6 +347,7 @@ A headless end-to-end check is available: `python scripts/smoke_test.py`.
 │   ├── feature_engineering.py  # target + leakage-safe features
 │   ├── train.py            # split, model comparison, calibration, persistence
 │   ├── uncertainty.py      # split conformal prediction + labels
+│   ├── warning.py          # IMD colour-coded warnings + inundation risk
 │   ├── predict.py          # prediction assembly + feature influence
 │   ├── evaluation.py       # test-set metrics, curves, importances
 │   ├── study.py            # scenarios, design, statistics, demo generator
@@ -317,12 +379,27 @@ A headless end-to-end check is available: `python scripts/smoke_test.py`.
   the dataset's station observations; the historical evaluation metrics
   were measured on dataset observations, not on the live feed.
 
-## Future improvements
+- The warning matrix and inundation index are documented heuristics on top
+  of the calibrated model output — the colour thresholds are design choices
+  aligned to IMD intensity bands, not learned parameters, and the
+  inundation band uses no terrain or drainage-network data.
 
-- Mokri/Mondrian (per-station or per-season) conformal prediction for
-  approximate conditional coverage.
-- Mixed-effects logistic regression for the study analysis.
-- Cost-sensitive decision support (expected-utility framing).
-- SHAP-based local explanations.
-- Probability-of-precipitation regression (rain amount intervals via
-  conformalized quantile regression).
+## Roadmap (toward the full PS 26071 vision)
+
+- **Satellite ingestion** — INSAT-3D/3DR IR brightness temperature and
+  hydro-estimator rain-rate as additional feature columns.
+- **Radar ingestion** — Doppler weather radar reflectivity-derived
+  rain-rate features for nowcasting lead times.
+- **Direct NWP fields** — GFS/WRF grid values (CAPE, precipitable water,
+  850 hPa winds) interpolated to stations, beyond the current NWP-driven
+  daily feed.
+- **Rainfall-amount prediction** — conformalized quantile regression for
+  mm-amount intervals, upgrading the warning matrix from potential-based
+  to forecast-amount-based.
+- **Hydrological inundation modelling** — DEM/HAND-based flood-spread
+  estimation per district on top of the current screening index.
+- Mondrian (per-station / per-season) conformal prediction for approximate
+  conditional coverage.
+- Mixed-effects logistic regression for the study analysis;
+  cost-sensitive expected-utility decision support; SHAP-based local
+  explanations.

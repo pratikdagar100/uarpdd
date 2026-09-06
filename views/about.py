@@ -39,6 +39,14 @@ FUTURE = [
 def render(state: dict, cfg: AppConfig) -> None:
     T.page_header("About this project")
 
+    st.markdown(
+        '<div class="strip"><b>SIH Problem Statement 26071</b> — AI/ML-Based '
+        'Integrated heavy rainfall Early Warning and Inundation Prediction '
+        'System using Satellite, Radar, observational Weather and numerical '
+        'weather prediction model data · Ministry of Earth Sciences / India '
+        'Meteorological Department · Disaster Management.</div>',
+        unsafe_allow_html=True)
+
     st.markdown(f"""
 <div style="background:linear-gradient(120deg,{T.NAVY} 0%,#1c3f77 100%);
   border-radius:12px;padding:1.5rem 1.8rem;margin-bottom:1rem">
