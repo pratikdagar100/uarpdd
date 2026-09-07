@@ -69,13 +69,12 @@ def _range_text(a: dict) -> str:
 def render(state: dict, cfg: AppConfig) -> None:
     features: pd.DataFrame = state["features"]
 
-    T.page_header("Early warning board")
     tomorrow = pd.Timestamp(_dt.date.today()) + pd.Timedelta(days=1)
-
-    st.markdown(
-        f'<div class="strip">Warnings for '
-        f'<b>{tomorrow.strftime("%d %B %Y")}</b></div>',
-        unsafe_allow_html=True)
+    T.page_header(
+        "Early warning board",
+        f'Rainfall warnings and inundation risk for '
+        f'<b>{tomorrow.strftime("%A, %d %B %Y")}</b>, issued per station on '
+        f'the IMD colour scale.')
 
     # ------------------------------------------------------ sweep controls
     stations = sorted(features["station"].unique())
@@ -129,19 +128,40 @@ def _tab_overview(results: list[dict], cfg: AppConfig) -> None:
     counts = {lvl: sum(1 for a in results if a["level"] == lvl)
               for lvl in LEVEL_ORDER}
     live_n = sum(1 for a in results if a["source"] == "live")
-    tiles = "".join(
-        f'<div class="tile" style="border-top:3px solid '
-        f'{WARNING_META[lvl]["color"]}"><div class="t-label">'
-        f'{lvl} · {WARNING_META[lvl]["title"]}</div>'
-        f'<div class="t-value">{counts[lvl]}</div>'
-        f'<div class="t-foot">{WARNING_META[lvl]["advice"]}</div></div>'
-        for lvl in LEVEL_ORDER)
+
+    # A level with no stations is a fact worth showing, but it should not
+    # compete with one that needs action -- so an empty count keeps the
+    # neutral ground and drops its colour.
+    cells = []
+    for lvl in LEVEL_ORDER:
+        sev = T.SEVERITY[lvl]
+        n = counts[lvl]
+        live = n > 0
+        ground = (f"background:{sev['tint']};"
+                  f"box-shadow:inset 0 0 0 1px {sev['fill']}40" if live else "")
+        value_col = sev["ink"] if live else T.MUTED
+        cells.append(
+            f'<div class="tile" style="{ground}">'
+            f'<div style="display:flex;align-items:center;gap:6px">'
+            f'{T.severity_glyph(lvl) if live else ""}'
+            f'<span class="t-label" style="margin:0;color:'
+            f'{sev["ink"] if live else T.MUTED}">{lvl} &middot; '
+            f'{sev["title"]}</span></div>'
+            f'<div class="t-value" style="color:{value_col}">{n}</div>'
+            f'<div class="t-foot" style="color:'
+            f'{sev["ink"] if live else T.MUTED}">{sev["advice"]}</div></div>')
+
+    acting = counts["RED"] + counts["ORANGE"]
+    lede = (f"<b>{acting}</b> of {len(results)} stations need action today"
+            if acting else
+            f"No station is above Watch across {len(results)} assessed")
     st.markdown(
-        f'<div style="display:grid;grid-template-columns:repeat(4,1fr);'
-        f'gap:10px;margin:0.6rem 0">{tiles}</div>'
-        f'<div style="font-size:0.76rem;color:{T.MUTED};margin-bottom:0.4rem">'
-        f'{len(results)} stations assessed · {live_n} from live weather, '
-        f'{len(results) - live_n} from seasonal averages.</div>',
+        '<div style="display:grid;grid-template-columns:'
+        'repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:0.2rem 0 0.7rem">'
+        + "".join(cells) + "</div>"
+        f'<div style="font-size:var(--t-sm);color:{T.MUTED};'
+        f'margin-bottom:0.6rem">{lede} &middot; {live_n} forecast from live '
+        f'weather, {len(results) - live_n} from seasonal averages.</div>',
         unsafe_allow_html=True)
 
     show_levels = st.multiselect(
@@ -200,7 +220,7 @@ def _tab_map(results: list[dict]) -> None:
         landcolor="#f4f6f9", showland=True, bgcolor=T.SURFACE)
     fig.update_layout(title="Colour = warning level")
     T.apply_layout(fig, height=480)
-    st.plotly_chart(fig, use_container_width=True,
+    st.plotly_chart(fig, width="stretch",
                     config={"displayModeBar": False})
 
 
@@ -242,7 +262,7 @@ def _tab_detail(results: list[dict], features: pd.DataFrame,
                           annotation_font_color=color)
     fig.update_layout(title=f"Recent rainfall — {pick}")
     T.apply_layout(fig, height=260)
-    st.plotly_chart(fig, use_container_width=True,
+    st.plotly_chart(fig, width="stretch",
                     config={"displayModeBar": False})
 
 
@@ -263,7 +283,7 @@ def _tab_table(results: list[dict], tomorrow: pd.Timestamp) -> None:
         "Source": ("Live weather" if a["source"] == "live"
                    else "Seasonal average"),
     } for a in results])
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)
     st.download_button(
         "Download warnings (CSV)",
         df.to_csv(index=False).encode(),
@@ -313,37 +333,56 @@ performance* for the evaluation). The matrix and weights live in
 
 
 # ------------------------------------------------------------ station card
+# Waterlogging bands map onto the same four-step severity ramp as the IMD
+# levels, so the two scales stay visually consistent without competing: the
+# IMD badge is solid, this one is a tint.
+_INUN_LEVEL = {"LOW": "GREEN", "MODERATE": "YELLOW",
+               "HIGH": "ORANGE", "SEVERE": "RED"}
+
+
 def _station_card(a: dict, big: bool = False) -> None:
-    meta, pred, inun = a["meta"], a["pred"], a["inundation"]
-    src = (T.pill("LIVE WEATHER", "teal") if a["source"] == "live"
-           else T.pill("SEASONAL ESTIMATE", "amber"))
-    inun_color = INUNDATION_META[inun["band"]]["color"]
+    """One station's warning.
+
+    Severity is carried four ways at once -- ground tint, badge colour, glyph
+    silhouette and rank ticks -- because the red/green ends of the IMD scale
+    are indistinguishable to a red-green colour-blind reader, and this is the
+    screen a response decision is made from.
+    """
+    pred, inun = a["pred"], a["inundation"]
+    lvl = a["level"]
+    sev = T.SEVERITY[lvl]
     pot = a["potential"]
+
+    # An acting level lifts its own ground so the eye lands on it first;
+    # quiet levels stay on plain white and recede.
+    ground = (f"background:{sev['tint']};"
+              f"box-shadow:inset 0 0 0 1px {sev['fill']}40"
+              if lvl in ("RED", "ORANGE") else "")
+
+    inun_sev = T.SEVERITY[_INUN_LEVEL[inun["band"]]]
+    source_label = ("Live weather" if a["source"] == "live"
+                    else "Seasonal estimate")
+    name_size = "var(--t-xl)" if big else "var(--t-lg)"
+
     st.markdown(f"""
-<div class="uar-card" style="border-left:5px solid {meta['color']};
-  margin-bottom:0.6rem">
-  <div style="display:flex;justify-content:space-between;align-items:center;
-    flex-wrap:wrap;gap:8px">
-    <div>
-      <span style="display:inline-block;padding:2px 10px;border-radius:4px;
-        background:{meta['color']};color:#fff;font-weight:700;
-        font-size:{'0.9rem' if big else '0.78rem'}">{a['level']} ·
-        {meta['title'].upper()}</span>
-      <b style="margin-left:8px;font-size:{'1.05rem' if big else '1rem'}">
-        {a['station']}</b>
-    </div>
-    <div>{src}
-      <span class="pill" style="background:{inun_color}">Waterlogging ·
-        {inun['band']}</span></div>
+<div class="stn" style="{ground}">
+  <div class="stn-head">
+    {T.severity_badge(lvl)}
+    <span class="stn-name" style="font-size:{name_size}">{a['station']}</span>
+    <span style="flex:1"></span>
+    <span class="chip">{source_label}</span>
+    <span class="chip" style="background:{inun_sev['tint']};
+      color:{inun_sev['ink']};border-color:{inun_sev['fill']}40">
+      Waterlogging <b style="color:inherit">{inun['band']}</b></span>
   </div>
-  <div style="display:flex;gap:1.6rem;flex-wrap:wrap;margin-top:0.55rem;
-    font-size:0.84rem;color:{T.INK_2}">
-    <span>Chance of rain <b>{pred['p_rain']:.0%}</b></span>
-    <span>Outlook <b>{_range_text(a)}</b></span>
-    <span>If it rains <b>up to ~{pot['p90_mm']:.0f} mm</b>
+  <div class="stn-facts">
+    <span class="stn-fact">Chance of rain <b>{pred['p_rain']:.0%}</b></span>
+    <span class="stn-fact">Outlook <b>{_range_text(a)}</b></span>
+    <span class="stn-fact">If it rains
+      <b>up to ~{pot['p90_mm']:.0f} mm</b>
       ({a['intensity_category'].lower()})</span>
-    <span>Last 7 days <b>{a['rolling7_mm']:.0f} mm</b></span>
+    <span class="stn-fact">Last 7 days
+      <b>{a['rolling7_mm']:.0f} mm</b></span>
+    <span class="stn-fact">Advice <b>{sev['advice']}</b></span>
   </div>
-  <div style="font-size:0.78rem;color:{T.MUTED};margin-top:0.35rem">
-    Advice: <b>{meta['advice']}</b></div>
 </div>""", unsafe_allow_html=True)

@@ -16,7 +16,10 @@ def render(state: dict, cfg: AppConfig) -> None:
     prep = state["prep_report"]
     feat = state["feat_report"]
 
-    T.page_header("Dataset explorer")
+    T.page_header(
+        "Dataset explorer",
+        "What the pipeline found in the source data, how it mapped the "
+        "columns, and what cleaning removed before training.")
 
     dr = insp.get("date_range", ("—", "—"))
     rain_days = int(features["RainTomorrow"].sum())
@@ -39,7 +42,7 @@ def render(state: dict, cfg: AppConfig) -> None:
         rows = "".join(
             f'<tr><td style="padding:5px 8px;color:{T.MUTED};'
             f'font-size:0.78rem">{role}</td>'
-            f'<td style="padding:5px 8px;font-family:Consolas,monospace;'
+            f'<td style="padding:5px 8px;font-family:var(--mono);'
             f'font-size:0.82rem;color:{T.INK}">'
             f'{col if col else "&mdash; not present &mdash;"}</td></tr>'
             for role, col in mapping.items())
@@ -87,7 +90,7 @@ def render(state: dict, cfg: AppConfig) -> None:
             extras.append("Imputed (station-month median): "
                           + " · ".join(f"{k} {v:,}" for k, v in
                                        prep["imputed_values"].items() if v))
-        extra_html = (f'<div style="font-size:0.72rem;color:{T.MUTED};'
+        extra_html = (f'<div style="font-size:var(--t-xs);color:{T.MUTED};'
                       f'margin-top:0.5rem">{" — ".join(extras)}</div>'
                       if extras else "")
         st.markdown(
@@ -145,9 +148,9 @@ def render(state: dict, cfg: AppConfig) -> None:
         st.download_button("Download filtered CSV",
                            view[show_cols].to_csv(index=False).encode("utf-8"),
                            file_name="processed_rainfall_dataset.csv",
-                           mime="text/csv", use_container_width=True)
+                           mime="text/csv", width="stretch")
 
-    st.dataframe(view[show_cols].head(2000), use_container_width=True,
+    st.dataframe(view[show_cols].head(2000), width="stretch",
                  hide_index=True, height=320)
 
     c6, c7 = st.columns(2)
@@ -163,7 +166,7 @@ def render(state: dict, cfg: AppConfig) -> None:
             hovertemplate="%{x}: %{y:,}<extra></extra>"))
         fig.update_layout(title="Target distribution (filtered selection)")
         T.apply_layout(fig, height=300)
-        st.plotly_chart(fig, use_container_width=True,
+        st.plotly_chart(fig, width="stretch",
                         config={"displayModeBar": False})
     with c7:
         if sel == "All stations":
@@ -185,5 +188,5 @@ def render(state: dict, cfg: AppConfig) -> None:
                 hovertemplate="%{x}: %{y:,.0f} mm<extra></extra>"))
             fig.update_layout(title=f"Yearly rainfall — {sel} (mm)")
         T.apply_layout(fig, height=300)
-        st.plotly_chart(fig, use_container_width=True,
+        st.plotly_chart(fig, width="stretch",
                         config={"displayModeBar": False})

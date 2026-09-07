@@ -37,7 +37,10 @@ FUTURE = [
 
 
 def render(state: dict, cfg: AppConfig) -> None:
-    T.page_header("About this project")
+    T.page_header(
+        "About this project",
+        "What the system does, how it is built, and the limits it "
+        "states about itself.")
 
     st.markdown(
         '<div class="strip"><b>SIH Problem Statement 26071</b> — AI/ML-Based '
@@ -52,7 +55,7 @@ def render(state: dict, cfg: AppConfig) -> None:
   border-radius:12px;padding:1.5rem 1.8rem;margin-bottom:1rem">
   <div style="font-size:0.7rem;letter-spacing:0.16em;color:#8fa1b8;
     font-weight:700">RESEARCH QUESTION</div>
-  <div style="font-family:Poppins,sans-serif;font-size:1.45rem;
+  <div style="font-size:var(--t-xl);letter-spacing:-0.02em;
     font-weight:600;color:#ffffff;line-height:1.35;margin:0.35rem 0 0.6rem">
     Does communicating uncertainty in rainfall predictions improve human
     decision-making compared with presenting only a point prediction?</div>
@@ -132,6 +135,6 @@ def render(state: dict, cfg: AppConfig) -> None:
         with col:
             st.markdown(
                 f'<div class="uar-card" style="height:100%">'
-                f'<div style="font-size:0.72rem;color:{T.MUTED}">{label}'
+                f'<div style="font-size:var(--t-xs);color:{T.MUTED}">{label}'
                 f'</div>{main_html}{foot_html}</div>',
                 unsafe_allow_html=True)

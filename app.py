@@ -39,12 +39,13 @@ def _bootstrap() -> dict:
     force = st.session_state.pop("force_retrain", False)
     holder = st.empty()
     with holder.container():
-        st.markdown('<div class="pg-kicker">First run</div>'
-                    '<div class="pg-title">Building the pipeline</div>'
-                    '<div class="pg-sub">Runs once for a new dataset or '
-                    'config; a few minutes for ~1M rows. All artifacts are '
-                    'cached in <code>models/</code> and later starts load in '
-                    'seconds.</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div style="max-width:52ch;margin:14vh auto 0">'
+            '<div class="pg-title">Building the forecast pipeline</div>'
+            '<div class="pg-sub">This runs once for a new dataset or '
+            'configuration &mdash; a few minutes for around a million rows. '
+            'Everything is cached in <code>models/</code>, so later starts '
+            'take a second.</div></div>', unsafe_allow_html=True)
         bar = st.progress(0.0, text="Starting pipeline…")
 
     def progress(pct, msg):
@@ -77,7 +78,7 @@ def _sidebar(state: dict | None) -> str:
 
         current = st.session_state.get("nav", PAGES[0][0])
         for name, _ in PAGES:
-            if st.button(name, key=f"nav_{name}", use_container_width=True,
+            if st.button(name, key=f"nav_{name}", width="stretch",
                          type="primary" if name == current else "secondary"):
                 if st.session_state.get("nav") != name:
                     st.session_state["nav"] = name

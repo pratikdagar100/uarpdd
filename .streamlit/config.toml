@@ -1,9 +1,14 @@
+# Streamlit's own theme drives the native widgets (multiselect tags, sliders,
+# inputs). It has to carry the same tokens as views/theme.py, or a control
+# renders off-palette -- the previous primaryColor put white tag labels at
+# 4.42:1, just under AA.
 [theme]
 base = "light"
-primaryColor = "#2a78d6"
-backgroundColor = "#eef2f7"
-secondaryBackgroundColor = "#ffffff"
-textColor = "#16202e"
+primaryColor = "#1c5fb0"            # ACCENT  -- white label on it is 6.34:1
+backgroundColor = "#f1f4f8"         # PAGE
+secondaryBackgroundColor = "#ffffff"  # SURFACE
+textColor = "#0f141a"               # INK     -- 16.77:1 on PAGE
+font = "sans-serif"
 
 [server]
 headless = true

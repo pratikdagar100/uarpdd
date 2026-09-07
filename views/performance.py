@@ -17,7 +17,10 @@ def render(state: dict, cfg: AppConfig) -> None:
     ev = state["evaluation"]
     bundle = state["bundle"]
 
-    T.page_header("Model performance")
+    T.page_header(
+        "Model performance",
+        "How the selected model scores on the held-out test period, and "
+        "whether its stated probabilities and prediction sets hold up.")
 
     tiles = [
         T.tile("Accuracy", f"{ev['accuracy']:.1%}"),
@@ -65,7 +68,7 @@ def render(state: dict, cfg: AppConfig) -> None:
                           xaxis_title="False positive rate",
                           yaxis_title="True positive rate")
         T.apply_layout(fig, height=330)
-        st.plotly_chart(fig, use_container_width=True,
+        st.plotly_chart(fig, width="stretch",
                         config={"displayModeBar": False})
 
     c3, c4 = st.columns(2)
@@ -91,7 +94,7 @@ def render(state: dict, cfg: AppConfig) -> None:
         fig.update_xaxes(tickformat=".0%")
         fig.update_yaxes(tickformat=".0%")
         T.apply_layout(fig, height=330)
-        st.plotly_chart(fig, use_container_width=True,
+        st.plotly_chart(fig, width="stretch",
                         config={"displayModeBar": False})
     with c4:
         cd = ev["class_distribution"]
@@ -108,7 +111,7 @@ def render(state: dict, cfg: AppConfig) -> None:
             cd["train_positive_rate"], cd["test_positive_rate"]) * 1.4])
         fig.update_layout(title="Class distribution — share of RainTomorrow = 1")
         T.apply_layout(fig, height=330)
-        st.plotly_chart(fig, use_container_width=True,
+        st.plotly_chart(fig, width="stretch",
                         config={"displayModeBar": False})
 
     # ---------------- Conformal diagnostics ----------------
@@ -131,7 +134,7 @@ def render(state: dict, cfg: AppConfig) -> None:
         rows = []
         for name, res in bundle["model_comparison"].items():
             sel = ('<span style="background:#e9f9f0;color:#0b6b3a;'
-                   'border-radius:6px;padding:1px 8px;font-size:0.72rem;'
+                   'border-radius:6px;padding:1px 8px;font-size:var(--t-xs);'
                    'font-weight:700">selected</span>'
                    if name == bundle["model_name"] else "")
             rows.append(f'<tr><td style="padding:6px 8px">{name}</td>'
@@ -175,7 +178,7 @@ def render(state: dict, cfg: AppConfig) -> None:
             fig.update_layout(
                 title=f"{bundle['model_name']} impurity importance")
             T.apply_layout(fig, height=380)
-            st.plotly_chart(fig, use_container_width=True,
+            st.plotly_chart(fig, width="stretch",
                             config={"displayModeBar": False})
     with c8:
         pi = pd.DataFrame(ev["permutation_importance"]).T
@@ -188,5 +191,5 @@ def render(state: dict, cfg: AppConfig) -> None:
             hovertemplate="%{y}: %{x:.4f}<extra></extra>"))
         fig.update_layout(title="Permutation importance (ΔROC-AUC, test sample)")
         T.apply_layout(fig, height=380)
-        st.plotly_chart(fig, use_container_width=True,
+        st.plotly_chart(fig, width="stretch",
                         config={"displayModeBar": False})

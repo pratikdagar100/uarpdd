@@ -43,7 +43,11 @@ def render(state: dict, cfg: AppConfig) -> None:
     features: pd.DataFrame = state["features"]
     bundle = state["bundle"]
 
-    T.page_header("Prediction dashboard")
+    T.page_header(
+        "Prediction dashboard",
+        "Tomorrow's rainfall forecast for one station, with the "
+        "calibrated probability and what the model can and cannot "
+        "rule out.")
 
     c1, c2 = st.columns([2.2, 1])
     stations = sorted(features["station"].unique())
@@ -140,7 +144,7 @@ def _history_charts(sdf: pd.DataFrame, cfg: AppConfig, station: str,
                   annotation_font_color=T.ORANGE)
     fig.update_layout(title="Daily rainfall (mm)")
     T.apply_layout(fig, height=250)
-    st.plotly_chart(fig, use_container_width=True,
+    st.plotly_chart(fig, width="stretch",
                     config={"displayModeBar": False})
 
     c3, c4 = st.columns(2)
@@ -157,7 +161,7 @@ def _history_charts(sdf: pd.DataFrame, cfg: AppConfig, station: str,
                             mode="lines", line=dict(color=T.AQUA, width=1.4))
         fig.update_layout(title="Temperature (°C)")
         T.apply_layout(fig, height=250)
-        st.plotly_chart(fig, use_container_width=True,
+        st.plotly_chart(fig, width="stretch",
                         config={"displayModeBar": False})
     with c4:
         fig = go.Figure()
@@ -172,7 +176,7 @@ def _history_charts(sdf: pd.DataFrame, cfg: AppConfig, station: str,
                             line=dict(color=T.BLUE, width=2))
             fig.update_layout(title="Wind speed (km/h)")
         T.apply_layout(fig, height=250)
-        st.plotly_chart(fig, use_container_width=True,
+        st.plotly_chart(fig, width="stretch",
                         config={"displayModeBar": False})
 
     c5, c6 = st.columns(2)
@@ -186,7 +190,7 @@ def _history_charts(sdf: pd.DataFrame, cfg: AppConfig, station: str,
             hovertemplate="%{x}: %{y:.1f} mm/day<extra></extra>"))
         fig.update_layout(title="Average daily rainfall by month (mm)")
         T.apply_layout(fig, height=250)
-        st.plotly_chart(fig, use_container_width=True,
+        st.plotly_chart(fig, width="stretch",
                         config={"displayModeBar": False})
     with c6:
         freq = (sdf.assign(m=sdf["date"].dt.month)
@@ -200,7 +204,7 @@ def _history_charts(sdf: pd.DataFrame, cfg: AppConfig, station: str,
         fig.update_layout(
             title=f"Share of days with ≥ {cfg.rain_threshold_mm} mm next-day rain")
         T.apply_layout(fig, height=250)
-        st.plotly_chart(fig, use_container_width=True,
+        st.plotly_chart(fig, width="stretch",
                         config={"displayModeBar": False})
 
 
@@ -222,16 +226,17 @@ def _hero_card(station: str, context: str, pred: dict, cfg: AppConfig,
   <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
     <div style="font-size:0.78rem;color:{T.MUTED}">{context}</div>
     <div>
-      {T.pill("Confidence · " + pred['confidence'], T.CONF_PILL[pred['confidence']])}
-      {T.pill("Uncertainty · " + pred['uncertainty'], T.UNC_PILL[pred['uncertainty']])}
-      {T.pill(f"{cfg.conformal_coverage:.0%} set · {pset_txt}", pset_kind)}
+      <span class="chip">Confidence <b>{pred['confidence']}</b></span>
+      <span class="chip">Uncertainty <b>{pred['uncertainty']}</b></span>
+      <span class="chip">{cfg.conformal_coverage:.0%} set <b>{pset_txt}</b></span>
     </div>
   </div>
   <div style="display:flex;align-items:center;gap:14px;margin-top:0.5rem">
     <div>{icon}</div>
     <div>
-      <div style="font-family:Poppins,sans-serif;font-size:1.9rem;font-weight:600;
-        line-height:1.15;color:{T.INK}">Rain tomorrow:
+      <div style="font-size:var(--t-hero);font-weight:650;
+        letter-spacing:-0.025em;
+        line-height:1.12;color:{T.INK}">Rain tomorrow:
         <span style="color:{ans_color}">{answer}</span></div>
       <div style="color:{T.INK_2};font-size:0.95rem">Rain probability
         <b>{pred['p_rain']:.0%}</b> &middot; No-rain probability
@@ -268,21 +273,21 @@ def _render_live(state: dict, cfg: AppConfig, station: str,
     pred = predict_one(bundle, row, cfg)
 
     if source == "live":
-        badge = T.pill("LIVE CONDITIONS", "teal")
+        badge = '<span class="chip">Source <b>Live weather</b></span>'
         context = (f"{station} · forecast for tomorrow, "
                    f"{tomorrow.strftime('%d %B %Y')}")
         strip = (
-            f'<div class="strip strip-good" style="margin:0.7rem 0 0">'
+            f'<div class="strip strip-note" style="margin:0.7rem 0 0">'
             f'Live conditions from {info["observation_date"]} · model '
             f'trained on data through {last_obs.date()}.</div>')
         cond = info["conditions"]
         recent = info["recent"]
     else:
-        badge = T.pill("CLIMATOLOGY FALLBACK", "amber")
+        badge = '<span class="chip">Source <b>Seasonal average</b></span>'
         context = (f"{station} · estimate for tomorrow, "
                    f"{tomorrow.strftime('%d %B %Y')}")
         strip = (
-            f'<div class="strip strip-warn" style="margin:0.7rem 0 0">'
+            f'<div class="strip strip-note" style="margin:0.7rem 0 0">'
             f'Live conditions unavailable ({reason}) — using this '
             f'station\'s seasonal average for this date.</div>')
         c0 = row.iloc[0]
@@ -325,7 +330,7 @@ def _render_live(state: dict, cfg: AppConfig, station: str,
         st.markdown(
             f'<div class="uar-card"><div style="display:flex;'
             f'justify-content:space-between"><b>{head}</b>'
-            f'<span style="font-size:0.74rem;color:{T.MUTED}">{sub}</span>'
+            f'<span style="font-size:var(--t-xs);color:{T.MUTED}">{sub}</span>'
             f'</div><div style="display:grid;grid-template-columns:1fr 1fr;'
             f'gap:10px;margin-top:0.6rem">' + "".join(tiles)
             + "</div></div>", unsafe_allow_html=True)
@@ -345,7 +350,7 @@ def _render_live(state: dict, cfg: AppConfig, station: str,
                       annotation_font_color=T.ORANGE)
         fig.update_layout(title="Recent rainfall (mm)")
         T.apply_layout(fig, height=240)
-        st.plotly_chart(fig, use_container_width=True,
+        st.plotly_chart(fig, width="stretch",
                         config={"displayModeBar": False})
 
     _history_charts(sdf, cfg, station, last_obs.date())
@@ -390,6 +395,6 @@ def _prob_bars(pred: dict, cfg: AppConfig) -> str:
     return ('<div style="margin-top:0.6rem">'
             + bar("NO SIGNIFICANT RAIN", pred["p_no_rain"], "#aebdcd")
             + bar("RAIN", pred["p_rain"], T.BLUE)
-            + f'<div style="font-size:0.72rem;color:{T.MUTED};'
+            + f'<div style="font-size:var(--t-xs);color:{T.MUTED};'
               f'text-align:center">threshold '
               f'{cfg.classification_threshold:.0%}</div></div>')

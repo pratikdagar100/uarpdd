@@ -13,7 +13,10 @@ from . import theme as T
 
 
 def render(state: dict, cfg: AppConfig) -> None:
-    T.page_header("Training & config")
+    T.page_header(
+        "Training &amp; config",
+        "Every knob that changes the model. Editing one invalidates the "
+        "cached pipeline and retrains from scratch.")
 
     with st.form("config_form"):
         st.markdown("#### Problem definition")
@@ -64,7 +67,7 @@ def render(state: dict, cfg: AppConfig) -> None:
         vh_w = (1.0 - high_max) * 200
         st.markdown(f"""
 <div style="display:flex;height:26px;border-radius:8px;overflow:hidden;
-  font-size:0.68rem;font-weight:700;color:#fff;text-align:center;
+  font-size:var(--t-xs);font-weight:700;color:#fff;text-align:center;
   line-height:26px;margin:0.3rem 0 0.6rem">
   <div style="width:{lo_w:.0f}%;background:{T.SERIOUS}">LOW 50–{low_max:.0%}</div>
   <div style="width:{mo_w:.0f}%;background:{T.WARNING}">MODERATE –{mod_max:.0%}</div>
@@ -74,10 +77,10 @@ def render(state: dict, cfg: AppConfig) -> None:
 
         colA, colB, _sp = st.columns([1.3, 1, 2.2])
         apply_light = colA.form_submit_button("Apply (no retraining needed)",
-                                              use_container_width=True)
+                                              width="stretch")
         apply_retrain = colB.form_submit_button("Apply & retrain",
                                                 type="primary",
-                                                use_container_width=True)
+                                                width="stretch")
 
     if apply_light or apply_retrain:
         new_cfg = AppConfig(
@@ -114,7 +117,7 @@ def render(state: dict, cfg: AppConfig) -> None:
         _sp, colS = st.columns([3, 1])
         save_map = colS.form_submit_button("Save mapping & rebuild",
                                            type="primary",
-                                           use_container_width=True)
+                                           width="stretch")
     if save_map:
         save_mapping_override({r: (None if v == "— none —" else v)
                                for r, v in new_map.items()})
@@ -142,7 +145,7 @@ def render(state: dict, cfg: AppConfig) -> None:
     html = "".join(
         f'<tr><td style="padding:7px 10px;font-size:0.82rem;'
         f'color:{T.INK_2};width:280px">{k}</td>'
-        f'<td style="padding:7px 10px;font-family:Consolas,monospace;'
+        f'<td style="padding:7px 10px;font-family:var(--mono);'
         f'font-size:0.82rem;color:{T.INK}">{v}</td></tr>' for k, v in rows)
     st.markdown(f'<div class="uar-card"><table style="width:100%;'
                 f'border-collapse:collapse">{html}</table></div>',

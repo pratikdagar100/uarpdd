@@ -21,7 +21,10 @@ COLORS = {"POINT": "#aebdcd", "UNCERTAINTY": T.BLUE}
 
 
 def render(state: dict, cfg: AppConfig) -> None:
-    T.page_header("Study results")
+    T.page_header(
+        "Study results",
+        "Decisions recorded so far, compared between the point-forecast "
+        "and uncertainty conditions.")
 
     c = counts()
     include_demo = False
@@ -71,17 +74,17 @@ def render(state: dict, cfg: AppConfig) -> None:
 <div class="uar-card" style="{accent}">
   <div style="font-size:0.8rem;font-weight:650;color:{T.INK_2}">
     {NAMES.get(row['condition'], row['condition'])}</div>
-  <div style="font-family:Poppins,sans-serif;font-size:2.2rem;
+  <div style="font-size:var(--t-data);letter-spacing:-0.025em;
     font-weight:600;line-height:1.2">{row['decision_accuracy']:.0%}</div>
   <div style="font-size:0.76rem;color:{T.MUTED}">decision accuracy (95% CI
     {row['accuracy_ci_low']:.0%}–{row['accuracy_ci_high']:.0%})</div>
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;
     margin-top:0.7rem;border-top:1px solid {T.GRID};padding-top:0.6rem">
-    <div><div style="font-size:0.72rem;color:{T.MUTED}">Decisions</div>
+    <div><div style="font-size:var(--t-xs);color:{T.MUTED}">Decisions</div>
       <div style="font-weight:650">{row['n_decisions']}</div></div>
-    <div><div style="font-size:0.72rem;color:{T.MUTED}">Avg decision time</div>
+    <div><div style="font-size:var(--t-xs);color:{T.MUTED}">Avg decision time</div>
       <div style="font-weight:650">{row['avg_decision_time_s']:.1f} s</div></div>
-    <div><div style="font-size:0.72rem;color:{T.MUTED}">Avg stated
+    <div><div style="font-size:var(--t-xs);color:{T.MUTED}">Avg stated
       confidence</div>
       <div style="font-weight:650">{row['avg_user_confidence']:.2f} / 5</div></div>
   </div>
@@ -112,7 +115,7 @@ def render(state: dict, cfg: AppConfig) -> None:
         fig.update_yaxes(tickformat=".0%", range=[0, 1.08])
         fig.update_layout(title="Decision accuracy by condition (95% CI)")
         T.apply_layout(fig, height=310)
-        st.plotly_chart(fig, use_container_width=True,
+        st.plotly_chart(fig, width="stretch",
                         config={"displayModeBar": False})
     with c2:
         fig = go.Figure()
@@ -126,7 +129,7 @@ def render(state: dict, cfg: AppConfig) -> None:
                         showlegend=False)
         fig.update_layout(title="Decision time (seconds)")
         T.apply_layout(fig, height=310)
-        st.plotly_chart(fig, use_container_width=True,
+        st.plotly_chart(fig, width="stretch",
                         config={"displayModeBar": False})
 
     # ---------------- Confidence calibration & decision change ----------
@@ -154,7 +157,7 @@ def render(state: dict, cfg: AppConfig) -> None:
         fig.update_layout(barmode="group",
                           title="Stated confidence (1–5 → 0–1) vs accuracy")
         T.apply_layout(fig, height=320)
-        st.plotly_chart(fig, use_container_width=True,
+        st.plotly_chart(fig, width="stretch",
                         config={"displayModeBar": False})
         notes = []
         for _, r in oc.iterrows():
@@ -170,8 +173,8 @@ def render(state: dict, cfg: AppConfig) -> None:
                         f'space-between;align-items:center;padding:0.55rem 0;'
                         f'border-bottom:1px solid {T.GRID}">'
                         f'<span style="font-size:0.84rem;color:{T.INK_2}">'
-                        f'{k}</span><span style="font-family:Poppins,'
-                        f'sans-serif;font-size:1.25rem;font-weight:600">'
+                        f'{k}</span><span style="font-size:var(--t-xl);'
+                        f'font-weight:650;letter-spacing:-0.02em">'
                         f'{v}</span></div>')
             st.markdown(
                 f'<div class="uar-card"><b>Decision change with uncertainty '
@@ -249,23 +252,23 @@ def render(state: dict, cfg: AppConfig) -> None:
     st.markdown("### Demo data (synthetic)")
     b1, b2, b3 = st.columns(3)
     if b1.button("Generate demo data (12 synthetic participants)",
-                 use_container_width=True):
+                 width="stretch"):
         from .study_run import _scenario_pool
         pool = _scenario_pool(state, cfg)
         for rec in generate_demo_data(pool, cfg):
             log_decision(rec)
         st.rerun()
-    if b2.button("Delete all demo data", use_container_width=True):
+    if b2.button("Delete all demo data", width="stretch"):
         delete_demo_data()
         st.rerun()
-    if b3.button("Delete ALL study data", use_container_width=True,
+    if b3.button("Delete ALL study data", width="stretch",
                  help="Removes real AND demo decisions."):
         delete_all_data()
         st.rerun()
 
     # ---------------- Raw log ----------------
     with st.expander(f"Raw decision log ({len(df)} rows)"):
-        st.dataframe(df.drop(columns=["id"]), use_container_width=True,
+        st.dataframe(df.drop(columns=["id"]), width="stretch",
                      hide_index=True, height=300)
         st.download_button("Download decision log (CSV)",
                            df.to_csv(index=False).encode("utf-8"),
@@ -278,7 +281,7 @@ def _empty_state(state: dict, cfg: AppConfig) -> None:
   <svg width="52" height="52" viewBox="0 0 24 24" fill="none"
     stroke="{T.MUTED}" stroke-width="1.6" stroke-linecap="round">
     <path d="M4 20h16M7 20V10M12 20V4M17 20v-9"/></svg>
-  <div style="font-family:Poppins,sans-serif;font-size:1.35rem;
+  <div style="font-size:var(--t-xl);letter-spacing:-0.02em;
     font-weight:600;margin-top:0.6rem">No study data collected yet</div>
   <div style="color:{T.INK_2};font-size:0.9rem;max-width:520px;
     margin:0.4rem auto 1rem">Run sessions in the <b>User study</b> page;
@@ -286,10 +289,10 @@ def _empty_state(state: dict, cfg: AppConfig) -> None:
 </div>""", unsafe_allow_html=True)
     b1, b2, _sp = st.columns([1, 1.2, 2])
     if b1.button("Go to User study", type="primary",
-                 use_container_width=True):
+                 width="stretch"):
         st.session_state["nav"] = "User study"
         st.rerun()
-    if b2.button("Generate synthetic demo data", use_container_width=True):
+    if b2.button("Generate synthetic demo data", width="stretch"):
         from .study_run import _scenario_pool
         pool = _scenario_pool(state, cfg)
         for rec in generate_demo_data(pool, cfg):
@@ -308,7 +311,7 @@ def _empty_state(state: dict, cfg: AppConfig) -> None:
         with col:
             st.markdown(
                 f'<div class="uar-card" style="height:100%">'
-                f'<div style="font-size:0.72rem;color:{T.MUTED}">{k}</div>'
+                f'<div style="font-size:var(--t-xs);color:{T.MUTED}">{k}</div>'
                 f'<b>{t}</b><div style="font-size:0.8rem;color:{T.INK_2};'
                 f'margin-top:0.2rem">{d}</div></div>',
                 unsafe_allow_html=True)

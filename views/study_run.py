@@ -29,7 +29,10 @@ def _scenario_pool(state: dict, cfg: AppConfig) -> pd.DataFrame:
 
 
 def render(state: dict, cfg: AppConfig) -> None:
-    T.page_header("User study")
+    T.page_header(
+        "User study",
+        "The controlled experiment: does showing uncertainty change how "
+        "well people decide? Take a session and add a data point.")
 
     pool = _scenario_pool(state, cfg)
 
@@ -40,7 +43,7 @@ def render(state: dict, cfg: AppConfig) -> None:
         with left:
             st.markdown(f"""
 <div class="uar-card">
-  <div style="font-family:Poppins,sans-serif;font-size:1.35rem;
+  <div style="font-size:var(--t-xl);letter-spacing:-0.02em;
     font-weight:600">Ready to take part?</div>
   <div style="color:{T.INK_2};font-size:0.9rem;margin:0.3rem 0 0.9rem">
     {cfg.scenarios_per_participant} scenarios, about five minutes. No account
@@ -63,7 +66,7 @@ def render(state: dict, cfg: AppConfig) -> None:
             b1, b2 = st.columns([1, 2.2])
             with b1:
                 start = st.button("Start a study session", type="primary",
-                                  use_container_width=True)
+                                  width="stretch")
             with b2:
                 st.markdown(
                     f'<div style="font-size:0.82rem;color:{T.MUTED};'
@@ -77,25 +80,25 @@ def render(state: dict, cfg: AppConfig) -> None:
             st.markdown(f"""
 <div class="uar-card">
   <b>What you will see</b>
-  <div style="font-size:0.72rem;letter-spacing:0.1em;color:{T.MUTED};
-    margin:0.7rem 0 0.3rem">POINT CONDITION</div>
+  <div style="font-size:var(--t-xs);color:{T.MUTED};font-weight:600;
+    margin:0.8rem 0 0.35rem">Point condition</div>
   <div style="border:1px solid {T.GRID};border-radius:10px;
     padding:0.6rem 0.9rem">
     <b>Rain tomorrow: {"YES" if ex['prediction'] == RAIN else "NO"}</b><br>
     <span style="font-size:0.82rem;color:{T.INK_2}">Probability of rain
       <b>{ex['p_rain']:.0%}</b></span></div>
-  <div style="font-size:0.72rem;letter-spacing:0.1em;color:{T.MUTED};
-    margin:0.8rem 0 0.3rem">UNCERTAINTY CONDITION</div>
+  <div style="font-size:var(--t-xs);color:{T.MUTED};font-weight:600;
+    margin:0.9rem 0 0.35rem">Uncertainty condition</div>
   <div style="border:1px solid {T.GRID};border-radius:10px;
     padding:0.6rem 0.9rem">
     <b>Rain tomorrow: {"YES" if ex['prediction'] == RAIN else "NO"}</b><br>
     <span style="font-size:0.82rem;color:{T.INK_2}">Probability of rain
       <b>{ex['p_rain']:.0%}</b></span><br>
-    <div style="margin-top:0.4rem;margin-left:-0.35rem">
-    {T.pill("Confidence · " + ex['confidence'], T.CONF_PILL[ex['confidence']])}
-    {T.pill("Uncertainty · " + ex['uncertainty'], T.UNC_PILL[ex['uncertainty']])}
-    {T.pill(f"{cfg.conformal_coverage:.0%} set · {ex['prediction_set']}",
-            "orange" if ex['ambiguous'] else "blue")}</div></div>
+    <div style="margin-top:0.5rem">
+    {T.chip("Confidence", ex['confidence'])}
+    {T.chip("Uncertainty", ex['uncertainty'])}
+    {T.chip(f"{cfg.conformal_coverage:.0%} set", ex['prediction_set'])}</div>
+    {T.confidence_scale_html(ex['confidence'])}</div>
 </div>""", unsafe_allow_html=True)
         if start:
             pid = uuid.uuid4().hex[:12]
@@ -156,15 +159,16 @@ def render(state: dict, cfg: AppConfig) -> None:
     ans_color = T.BLUE if s["prediction"] == RAIN else T.INK
     pills = ""
     if condition == "UNCERTAINTY":
-        pills = ('<div style="margin-top:0.55rem">'
-                 + T.pill("Confidence · " + s["confidence"],
-                          T.CONF_PILL[s["confidence"]])
-                 + T.pill("Uncertainty · " + s["uncertainty"],
-                          T.UNC_PILL[s["uncertainty"]])
-                 + T.pill(f"{cfg.conformal_coverage:.0%} set · "
-                          f"{s['prediction_set']}",
-                          "orange" if s["ambiguous"] else "blue")
-                 + "</div>")
+        # Must render uncertainty exactly as the Prediction dashboard does.
+        # If the study's stimulus and the shipped screen drift apart, the
+        # experiment stops measuring the interface the product actually has.
+        pills = ('<div style="margin-top:0.6rem">'
+                 + T.chip("Confidence", s["confidence"])
+                 + T.chip("Uncertainty", s["uncertainty"])
+                 + T.chip(f"{cfg.conformal_coverage:.0%} set",
+                          s["prediction_set"])
+                 + "</div>"
+                 + T.confidence_scale_html(s["confidence"]))
     st.markdown(f"""
 <div class="uar-card" style="text-align:center;padding:1.4rem 1.5rem">
   <div style="font-size:0.78rem;color:{T.MUTED}">{s['station']} ·
@@ -173,7 +177,7 @@ def render(state: dict, cfg: AppConfig) -> None:
   <div style="margin:0.6rem 0 0.7rem">{''.join(chips)}</div>
   <div style="display:flex;align-items:center;justify-content:center;gap:12px">
     {icon}
-    <span style="font-family:Poppins,sans-serif;font-size:1.8rem;
+    <span style="font-size:var(--t-2xl);letter-spacing:-0.02em;
       font-weight:600">Rain tomorrow:
       <span style="color:{ans_color}">{ans}</span></span>
   </div>
