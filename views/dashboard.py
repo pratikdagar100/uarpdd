@@ -60,7 +60,7 @@ def render(state: dict, cfg: AppConfig) -> None:
     dates = sdf["date"].dt.date
 
     today = pd.Timestamp(_dt.date.today())
-    tomorrow = today + pd.Timedelta(days=1)
+    tomorrow = today + pd.Timedelta(1, "D")
     with c2:
         mode = st.selectbox(
             "Forecast mode",

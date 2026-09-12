@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 
 import numpy as np
@@ -83,6 +84,40 @@ def fetch_recent_observations(lat: float, lon: float, past_days: int = 10,
     return df
 
 
+def fetch_many(coords: dict[str, tuple[float, float]], past_days: int = 10,
+               timeout: int = 15, max_workers: int = 8
+               ) -> dict[str, pd.DataFrame | LiveWeatherError]:
+    """Fetch observations for many stations at once.
+
+    The warning board sweeps every monitored station, and one blocking HTTP
+    round trip per station makes the headline page scale linearly with the
+    station count -- minutes, if the operator quick-adds all of them. These
+    requests are almost entirely spent waiting, so a small thread pool
+    collapses that to roughly the slowest single request. The pool is kept
+    modest deliberately: the upstream API is free and shared, and a 400-way
+    burst is a good way to be rate-limited mid-demo.
+
+    Never raises. Each station maps to its observations or to the
+    LiveWeatherError explaining why it has none, so one unreachable station
+    cannot take down the sweep.
+    """
+    def one(item):
+        station, (lat, lon) = item
+        try:
+            return station, fetch_recent_observations(lat, lon, past_days,
+                                                      timeout)
+        except LiveWeatherError as exc:
+            return station, exc
+        except Exception as exc:                     # never break the sweep
+            return station, LiveWeatherError(
+                f"live weather fetch failed ({type(exc).__name__})")
+
+    if not coords:
+        return {}
+    with ThreadPoolExecutor(max_workers=min(max_workers, len(coords))) as pool:
+        return dict(pool.map(one, coords.items()))
+
+
 def station_constants(features: pd.DataFrame, station: str,
                       target_date: pd.Timestamp) -> dict:
     """Station identity / geography / season codes taken from the training
@@ -112,7 +147,7 @@ def build_live_feature_row(features: pd.DataFrame, station: str,
     Mirrors feature_engineering.build_features exactly: every predictor is
     a function of `today` or earlier.
     """
-    today = target_date - pd.Timedelta(days=1)
+    today = target_date - pd.Timedelta(1, "D")
     hist = obs[obs["date"] <= today].sort_values("date").reset_index(drop=True)
     if hist.empty:
         raise LiveWeatherError("no live observations up to today")

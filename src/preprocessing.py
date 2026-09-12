@@ -1,6 +1,12 @@
 """Cleaning pipeline: standardise columns, remove duplicates, repair
-impossible values, impute — while preserving the *observed* rainfall series
+impossible values — while preserving the *observed* rainfall series
 separately so the prediction target is never built from imputed values.
+
+Nothing is imputed here. Statistical fills belong to the training split
+(see train.py), because a median computed at this stage is computed over the
+whole file, test period included, and leaks future information into every
+training row. What this module produces is a clean frame that still says
+where it has no observation.
 """
 from __future__ import annotations
 
@@ -16,8 +22,8 @@ def preprocess(df: pd.DataFrame, mapping: dict[str, str | None],
 
     clean_df has standardised role names as columns:
       date, station, rainfall_obs (observed, NaN preserved),
-      rainfall (imputed, feature use only), plus mapped numeric/categorical
-      roles.
+      rainfall (feature use only; missing values preserved for the
+      training-split imputer), plus mapped numeric/categorical roles.
     """
     report: dict = {"original_rows": int(len(df))}
     missing_before = int(df.isna().sum().sum())
@@ -96,21 +102,21 @@ def preprocess(df: pd.DataFrame, mapping: dict[str, str | None],
                   .agg(agg))
     report["rows_after_dedup"] = int(len(out))
 
-    # --- Feature-use rainfall: impute; target-use rainfall stays observed ---
+    # --- Feature-use rainfall mirrors the observation; both keep their gaps ---
     out = out.sort_values(["station", "date"]).reset_index(drop=True)
     out["rainfall"] = out["rainfall_obs"]
 
     # Statistical imputation is DEFERRED to train.py to prevent temporal data leakage.
     # We do not compute global/future medians here. The train split will compute
     # training-only medians which are then applied to validation, test, and live inference.
-    impute_cols = [c for c in ["rainfall", "avg_temp", "min_temp", "max_temp",
-                               "wind_speed", "air_pressure", "humidity",
-                               "cloud"] if c in out.columns]
-    imputed_counts = {}
-    for c in impute_cols:
-        # Record missing count for the dataset report, but leave NaNs intact for now.
-        imputed_counts[c] = int(out[c].isna().sum())
-    report["imputed_values"] = imputed_counts
+    tracked_cols = [c for c in ["rainfall", "avg_temp", "min_temp", "max_temp",
+                                "wind_speed", "air_pressure", "humidity",
+                                "cloud"] if c in out.columns]
+    missing_left = {}
+    for c in tracked_cols:
+        # Recorded for the dataset report; the NaNs themselves stay intact.
+        missing_left[c] = int(out[c].isna().sum())
+    report["missing_left_for_imputer"] = missing_left
 
     # Static geo columns: forward-fill within station then median
     for c in ["latitude", "longitude", "elevation"]:

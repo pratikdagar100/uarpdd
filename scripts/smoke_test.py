@@ -58,7 +58,7 @@ for name, q in [("low-p", 0.02), ("mid-p", 0.5), ("high-p", 0.98)]:
 import pandas as _pd
 from src.live_weather import live_forecast_row, LiveWeatherError
 from src.predict import climatology_row
-_tom = _pd.Timestamp(_pd.Timestamp.today().date()) + _pd.Timedelta(days=1)
+_tom = _pd.Timestamp(_pd.Timestamp.today().date()) + _pd.Timedelta(1, "D")
 _station = feats["station"].iloc[0]
 try:
     _row, _info = live_forecast_row(feats, _station, state["bundle"]["feature_cols"],

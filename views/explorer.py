@@ -86,10 +86,11 @@ def render(state: dict, cfg: AppConfig) -> None:
             extras.append("Values outside physical bounds set to missing: "
                           + " · ".join(f"{k}: {v:,}" for k, v in
                                        prep["values_nullified_out_of_range"].items()))
-        if prep.get("imputed_values"):
+        if prep.get("missing_left_for_imputer"):
             extras.append("Left missing for the training-split imputer: "
                           + " · ".join(f"{k} {v:,}" for k, v in
-                                       prep["imputed_values"].items() if v))
+                                       prep["missing_left_for_imputer"].items()
+                                       if v))
         extra_html = (f'<div style="font-size:var(--t-xs);color:{T.MUTED};'
                       f'margin-top:0.5rem">{" — ".join(extras)}</div>'
                       if extras else "")

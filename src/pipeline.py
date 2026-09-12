@@ -147,7 +147,7 @@ def run_pipeline(cfg: AppConfig, progress=None, force_retrain: bool = False
         mapping.update({k: v for k, v in load_mapping_override().items()
                         if v in raw.columns or v is None})
         inspection = inspect_dataset(raw, mapping)
-        _report(0.12, "Preprocessing (duplicates, invalid values, imputation)…")
+        _report(0.12, "Preprocessing (duplicates, invalid values)…")
         clean, prep_report = preprocess(raw, mapping, cfg)
         del raw
         _report(0.2, "Creating RainTomorrow target and lag features…")

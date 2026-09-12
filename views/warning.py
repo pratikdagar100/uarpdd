@@ -15,7 +15,8 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from src.config import AppConfig
-from src.live_weather import LiveWeatherError, live_forecast_row
+from src.live_weather import (LiveWeatherError, build_live_feature_row,
+                              fetch_many, station_constants)
 from src.predict import predict_one, climatology_row
 from src.warning import WARNING_META, INUNDATION_META, assess_station
 from . import theme as T
@@ -25,23 +26,41 @@ LEVEL_ORDER = ["RED", "ORANGE", "YELLOW", "GREEN"]
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
-def _live_row(station: str, target_date, feature_cols: tuple,
-              rain_threshold: float, _features):
-    """Cached live feature row (30-minute TTL). Returns (row, info)."""
-    return live_forecast_row(_features, station, list(feature_cols),
-                             pd.Timestamp(target_date), rain_threshold)
+def _live_observations(stations: tuple, target_date, _features) -> dict:
+    """Live observations for a whole sweep, fetched concurrently (30-minute
+    TTL). Maps each station to its observations or to the error explaining
+    why it has none."""
+    coords = {}
+    for stn in stations:
+        try:
+            c = station_constants(_features, stn, pd.Timestamp(target_date))
+        except LiveWeatherError as exc:
+            coords[stn] = exc
+            continue
+        lat, lon = c.get("latitude"), c.get("longitude")
+        if lat is None or lon is None:
+            coords[stn] = LiveWeatherError(
+                "station has no coordinates in the dataset")
+        else:
+            coords[stn] = (lat, lon)
+    fetchable = {k: v for k, v in coords.items() if not isinstance(v, Exception)}
+    fetched = fetch_many(fetchable)
+    return {**coords, **fetched}
 
 
 def _assess(state: dict, cfg: AppConfig, station: str,
-            tomorrow: pd.Timestamp) -> dict:
-    """Forecast + warning assessment for one station (live weather, with
-    seasonal-average fallback)."""
+            tomorrow: pd.Timestamp, obs) -> dict:
+    """Forecast + warning assessment for one station, from the sweep's
+    pre-fetched live observations, with a seasonal-average fallback."""
     features, bundle = state["features"], state["bundle"]
     source = "live"
     try:
-        row, _info = _live_row(station, tomorrow.date(),
-                               tuple(bundle["feature_cols"]),
-                               cfg.rain_threshold_mm, features)
+        if isinstance(obs, Exception) or obs is None:
+            raise obs if isinstance(obs, LiveWeatherError) else \
+                LiveWeatherError("no live observations for this station")
+        row, _info = build_live_feature_row(
+            features, station, bundle["feature_cols"], obs, tomorrow,
+            cfg.rain_threshold_mm)
     except LiveWeatherError:
         source = "seasonal"
         row, _info = climatology_row(features, station, tomorrow)
@@ -69,7 +88,7 @@ def _range_text(a: dict) -> str:
 def render(state: dict, cfg: AppConfig) -> None:
     features: pd.DataFrame = state["features"]
 
-    tomorrow = pd.Timestamp(_dt.date.today()) + pd.Timedelta(days=1)
+    tomorrow = pd.Timestamp(_dt.date.today()) + pd.Timedelta(1, "D")
     T.page_header(
         "Early warning board",
         f'Rainfall warnings and inundation risk for '
@@ -91,11 +110,15 @@ def render(state: dict, cfg: AppConfig) -> None:
         st.info("Select at least one station to run the warning sweep.")
         return
 
-    results, prog = [], st.progress(0.0, text="Running warning sweep…")
+    prog = st.progress(0.0, text="Fetching live conditions…")
+    observations = _live_observations(tuple(chosen), tomorrow.date(), features)
+
+    results = []
     for i, stn in enumerate(chosen):
         prog.progress((i + 1) / len(chosen), text=f"Assessing {stn}…")
         try:
-            results.append(_assess(state, cfg, stn, tomorrow))
+            results.append(_assess(state, cfg, stn, tomorrow,
+                                   observations.get(stn)))
         except Exception:
             continue
     prog.empty()
