@@ -100,23 +100,16 @@ def preprocess(df: pd.DataFrame, mapping: dict[str, str | None],
     out = out.sort_values(["station", "date"]).reset_index(drop=True)
     out["rainfall"] = out["rainfall_obs"]
 
-    # Impute numeric weather features with per-(station, month) median,
-    # falling back to per-month, then global median. Rainfall imputation is
-    # used ONLY for lag/rolling features, never for the target.
-    out["_month"] = out["date"].dt.month
+    # Statistical imputation is DEFERRED to train.py to prevent temporal data leakage.
+    # We do not compute global/future medians here. The train split will compute
+    # training-only medians which are then applied to validation, test, and live inference.
     impute_cols = [c for c in ["rainfall", "avg_temp", "min_temp", "max_temp",
                                "wind_speed", "air_pressure", "humidity",
                                "cloud"] if c in out.columns]
     imputed_counts = {}
     for c in impute_cols:
-        n_missing = int(out[c].isna().sum())
-        if n_missing == 0:
-            imputed_counts[c] = 0
-            continue
-        sm = out.groupby(["station", "_month"])[c].transform("median")
-        m = out.groupby("_month")[c].transform("median")
-        out[c] = out[c].fillna(sm).fillna(m).fillna(out[c].median())
-        imputed_counts[c] = n_missing
+        # Record missing count for the dataset report, but leave NaNs intact for now.
+        imputed_counts[c] = int(out[c].isna().sum())
     report["imputed_values"] = imputed_counts
 
     # Static geo columns: forward-fill within station then median
@@ -126,7 +119,6 @@ def preprocess(df: pd.DataFrame, mapping: dict[str, str | None],
                 lambda s: s.fillna(s.median()))
             out[c] = out[c].fillna(out[c].median())
 
-    out = out.drop(columns=["_month"])
 
     report["missing_values_before"] = missing_before
     report["missing_values_after"] = int(

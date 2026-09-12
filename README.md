@@ -79,10 +79,17 @@ rainfall column (a station/location column is strongly recommended) into
 - Physically impossible values (e.g. max_temp = 87 °C, pressure < 850 hPa)
   → set to missing, not deleted.
 - `min_temp > max_temp` → swapped.
-- Missing weather features → imputed with per-(station, month) median,
-  falling back to per-month then global median.
+- Missing weather features are **left missing here on purpose**. Imputation
+  happens later, in `train.py`, with medians computed on the training split
+  alone and reused unchanged for validation, test and live inference. Filling
+  them at this stage would compute the medians over the whole file — test
+  period included — and leak future information into every training row.
 - **Observed rainfall is kept separately (`rainfall_obs`) with missing values
   preserved** — the prediction target is never built from imputed rainfall.
+- Rows whose 1–3 day rainfall lags cannot be formed are dropped rather than
+  invented. On the shipped dataset (26.4% of rainfall readings missing, in
+  station-level clusters rather than scattered) this costs 8.0% of modelling
+  rows — 695,275 → 639,803 — and keeps all 406 stations.
 - Every step's row/value counts are reported in the Dataset Explorer tab.
 
 ## Target creation (2.5 mm threshold)

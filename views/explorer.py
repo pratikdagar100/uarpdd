@@ -87,7 +87,7 @@ def render(state: dict, cfg: AppConfig) -> None:
                           + " · ".join(f"{k}: {v:,}" for k, v in
                                        prep["values_nullified_out_of_range"].items()))
         if prep.get("imputed_values"):
-            extras.append("Imputed (station-month median): "
+            extras.append("Left missing for the training-split imputer: "
                           + " · ".join(f"{k} {v:,}" for k, v in
                                        prep["imputed_values"].items() if v))
         extra_html = (f'<div style="font-size:var(--t-xs);color:{T.MUTED};'

@@ -3,6 +3,8 @@ data/*.csv
 data/*.xlsx
 data/*.parquet
 data/study.db
+data/study.db-wal
+data/study.db-shm
 
 # ...but ship the default dataset with the repo
 !data/dataset.xlsx

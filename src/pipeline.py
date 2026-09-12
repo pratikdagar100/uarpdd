@@ -2,11 +2,13 @@
 
 Start app -> find dataset -> inspect -> preprocess -> target + features ->
 chronological split -> train + calibrate + conformal -> evaluate -> save.
-Subsequent starts load the cached artifacts as long as neither the dataset
-file nor the training-relevant config has changed.
+Subsequent starts load the cached artifacts as long as the dataset file, the
+training-relevant config and the pipeline code that produced them are all
+unchanged.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -25,6 +27,62 @@ PROCESSED_PATH = MODELS_DIR / "processed_features.parquet"
 META_PATH = MODELS_DIR / "pipeline_meta.json"
 EVAL_PATH = MODELS_DIR / "evaluation.joblib"
 MAPPING_OVERRIDE_PATH = MODELS_DIR / "column_mapping.json"
+
+# ---------------------------------------------------------- code versioning
+# The cached artifacts are only valid for the code that produced them. Keying
+# the caches on the dataset and the config alone means an edit to the science
+# modules is silently ignored -- the app keeps serving a model built by the
+# previous version of the pipeline. Hashing the sources instead of bumping a
+# constant by hand is deliberate: the failure mode being fixed here is exactly
+# the one a forgotten manual bump reintroduces.
+#
+# The three stages are layered so an edit invalidates only what it can
+# actually change: touching train.py must not force a 64 MB spreadsheet to be
+# re-read, but it must retrain, and a retrain must re-evaluate.
+_FEATURE_SOURCES = ("preprocessing.py", "feature_engineering.py")
+_MODEL_SOURCES = ("train.py", "uncertainty.py")
+_EVAL_SOURCES = ("evaluation.py", "predict.py")
+
+_SRC_DIR = Path(__file__).resolve().parent
+
+
+def _hash_sources(names: tuple[str, ...], *parents: str) -> str:
+    h = hashlib.md5()
+    for parent in parents:
+        h.update(parent.encode())
+    for name in names:
+        try:
+            h.update(hashlib.md5((_SRC_DIR / name).read_bytes()).digest())
+        except OSError:                              # source missing: treat
+            h.update(b"\0")                          # as its own version
+    return h.hexdigest()[:12]
+
+
+def features_code_version() -> str:
+    """Version of the code that produces models/processed_features.parquet."""
+    return _hash_sources(_FEATURE_SOURCES)
+
+
+def model_code_version() -> str:
+    """Version of the code that produces the model bundle (features included:
+    a changed feature matrix requires a retrain)."""
+    return _hash_sources(_MODEL_SOURCES, features_code_version())
+
+
+def eval_code_version() -> str:
+    """Version of the code that produces the cached evaluation."""
+    return _hash_sources(_EVAL_SOURCES, model_code_version())
+
+
+def dataset_cache_key() -> str:
+    """Cheap identity of the dataset currently in data/.
+
+    Callers cache pipeline state in memory across reruns; keyed on the config
+    alone, that cache survives the dataset being replaced or uploaded and
+    keeps serving the previous dataset's model.
+    """
+    path = find_dataset(DATA_DIR)
+    return "none" if path is None else dataset_fingerprint(path)
 
 
 def load_mapping_override() -> dict:
@@ -51,6 +109,7 @@ def _meta_matches(fingerprint: str, cfg: AppConfig) -> bool:
         return False
     return (meta.get("fingerprint") == fingerprint
             and meta.get("config_key") == cfg.model_key()
+            and meta.get("code_version") == features_code_version()
             and meta.get("mapping_override") == load_mapping_override())
 
 
@@ -98,6 +157,7 @@ def run_pipeline(cfg: AppConfig, progress=None, force_retrain: bool = False
         features.to_parquet(PROCESSED_PATH)
         META_PATH.write_text(json.dumps({
             "fingerprint": fingerprint, "config_key": cfg.model_key(),
+            "code_version": features_code_version(),
             "mapping_override": load_mapping_override(),
             "inspection": _jsonable(inspection),
             "prep_report": _jsonable(prep_report),
@@ -110,11 +170,13 @@ def run_pipeline(cfg: AppConfig, progress=None, force_retrain: bool = False
                   "features": features})
 
     # ---------- Model bundle (cached) ----------
-    bundle = None if force_retrain else load_bundle(fingerprint, cfg)
+    bundle = (None if force_retrain else
+              load_bundle(fingerprint, cfg, model_code_version()))
     if bundle is None:
         _report(0.25, "Training models (this happens once per dataset/config)…")
         bundle = train_pipeline(features, feature_cols, cfg, fingerprint,
-                                progress=lambda p, m: _report(0.25 + 0.6 * p, m))
+                                progress=lambda p, m: _report(0.25 + 0.6 * p, m),
+                                code_version=model_code_version())
         if EVAL_PATH.exists():
             EVAL_PATH.unlink()
     state["bundle"] = bundle
@@ -128,7 +190,8 @@ def run_pipeline(cfg: AppConfig, progress=None, force_retrain: bool = False
         try:
             cached = joblib.load(EVAL_PATH)
             if cached.get("fingerprint") == fingerprint and \
-               cached.get("config_key") == cfg.model_key():
+               cached.get("config_key") == cfg.model_key() and \
+               cached.get("code_version") == eval_code_version():
                 evaluation = cached["evaluation"]
         except Exception:
             evaluation = None
@@ -137,6 +200,7 @@ def run_pipeline(cfg: AppConfig, progress=None, force_retrain: bool = False
         evaluation = evaluate_bundle(bundle, features, split["test_mask"], cfg)
         joblib.dump({"fingerprint": fingerprint,
                      "config_key": cfg.model_key(),
+                     "code_version": eval_code_version(),
                      "evaluation": evaluation}, EVAL_PATH, compress=3)
     state["evaluation"] = evaluation
 

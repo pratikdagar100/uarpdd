@@ -49,8 +49,13 @@ def build_features(clean: pd.DataFrame, cfg: AppConfig
     df.loc[df["rain_tomorrow_mm"].isna(), "RainTomorrow"] = np.nan
 
     # ---------------- Leakage-safe predictors -----------------------------
-    # Rainfall lags & rolling sums (use the imputed 'rainfall' series so the
-    # feature exists even when the raw value was missing).
+    # Rainfall lags & rolling sums. 'rainfall' carries missing values through
+    # from preprocessing (imputation is deferred to the training split), so
+    # rows whose lags are undefined are dropped below and the remaining NaNs
+    # are filled with train-split medians in train.py / predict.py.
+    # The rolling sums deliberately skip missing days rather than going NaN:
+    # they are accumulation proxies, computed identically here and in the
+    # live feed, so a gap understates accumulation slightly but consistently.
     df["rainfall_today"] = df["rainfall"]
     for k in (1, 2, 3):
         df[f"rainfall_lag_{k}"] = g["rainfall"].shift(k)
@@ -58,7 +63,13 @@ def build_features(clean: pd.DataFrame, cfg: AppConfig
         lambda s: s.rolling(3, min_periods=1).sum())
     df["rainfall_rolling_7"] = g["rainfall"].transform(
         lambda s: s.rolling(7, min_periods=1).sum())
-    df["rain_today_flag"] = (df["rainfall"] >= cfg.rain_threshold_mm).astype(float)
+    # NaN >= threshold is False, which would encode a day with no rainfall
+    # observation as a confident "no rain today" while rainfall_today stays
+    # missing for the imputer. Keep the pair honest: unknown rainfall today
+    # means an unknown flag, imputed alongside it.
+    df["rain_today_flag"] = np.where(
+        df["rainfall"].isna(), np.nan,
+        (df["rainfall"] >= cfg.rain_threshold_mm).astype(float))
 
     # Pressure change vs yesterday (a classic synoptic signal), if available
     if "air_pressure" in df.columns:

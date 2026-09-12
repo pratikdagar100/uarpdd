@@ -74,10 +74,9 @@ def fetch_recent_observations(lat: float, lon: float, past_days: int = 10,
         "air_pressure": daily["pressure_msl_mean"],
     }).sort_values("date").reset_index(drop=True)
 
-    # Forward/backward fill isolated gaps; drop days with no rainfall figure
-    # at all (rainfall drives the lag features).
-    for c in ["avg_temp", "min_temp", "max_temp", "wind_speed", "air_pressure"]:
-        df[c] = df[c].ffill().bfill()
+    # Drop days with no rainfall figure at all (rainfall drives the lag features).
+    # Other missing features are left as NaN and will be exactly imputed using
+    # bundle["train_medians"] during inference to ensure consistency with training.
     df = df[df["rainfall"].notna()].reset_index(drop=True)
     if len(df) < 4:
         raise LiveWeatherError("live weather service returned too few days")

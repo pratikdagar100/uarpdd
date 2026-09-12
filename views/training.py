@@ -97,7 +97,6 @@ def render(state: dict, cfg: AppConfig) -> None:
         needs_retrain = new_cfg.model_key() != cfg.model_key()
         if apply_retrain or needs_retrain:
             st.session_state["force_retrain"] = True
-        st.session_state.pop("pipeline_state", None)
         st.rerun()
 
     # ---------------- Column mapping override ----------------
@@ -122,7 +121,6 @@ def render(state: dict, cfg: AppConfig) -> None:
         save_mapping_override({r: (None if v == "— none —" else v)
                                for r, v in new_map.items()})
         st.session_state["force_retrain"] = True
-        st.session_state.pop("pipeline_state", None)
         st.rerun()
 
     # ---------------- Current artifacts ----------------

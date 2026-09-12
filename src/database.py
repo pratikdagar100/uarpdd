@@ -6,6 +6,7 @@ session-scoped UUID only.
 from __future__ import annotations
 
 import sqlite3
+from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -37,8 +38,14 @@ CREATE TABLE IF NOT EXISTS decisions (
 
 
 def _connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
+    """Open a connection. Callers must close it: sqlite3's own context
+    manager commits the transaction but leaves the connection open, so every
+    `with _connect(...)` on its own leaks one per page render."""
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path)
+    # timeout=15.0 queues concurrent writes during SIH demo loads.
+    conn = sqlite3.connect(db_path, timeout=15.0)
+    # WAL mode significantly improves concurrent read/write behavior in SQLite.
+    conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute(SCHEMA)
     return conn
 
@@ -52,7 +59,7 @@ def log_decision(record: dict, db_path: Path = DB_PATH) -> None:
             "uncertainty_level", "prediction_set", "user_decision",
             "user_confidence", "decision_time_seconds", "actual_outcome",
             "decision_correct", "is_demo", "timestamp"]
-    with _connect(db_path) as conn:
+    with closing(_connect(db_path)) as conn, conn:
         conn.execute(
             f"INSERT INTO decisions ({','.join(cols)}) "
             f"VALUES ({','.join('?' * len(cols))})",
@@ -61,7 +68,7 @@ def log_decision(record: dict, db_path: Path = DB_PATH) -> None:
 
 def fetch_decisions(include_demo: bool = False,
                     db_path: Path = DB_PATH) -> pd.DataFrame:
-    with _connect(db_path) as conn:
+    with closing(_connect(db_path)) as conn:
         q = "SELECT * FROM decisions"
         if not include_demo:
             q += " WHERE is_demo = 0"
@@ -69,7 +76,7 @@ def fetch_decisions(include_demo: bool = False,
 
 
 def counts(db_path: Path = DB_PATH) -> dict:
-    with _connect(db_path) as conn:
+    with closing(_connect(db_path)) as conn:
         real = conn.execute(
             "SELECT COUNT(*), COUNT(DISTINCT participant_id) "
             "FROM decisions WHERE is_demo = 0").fetchone()
@@ -80,12 +87,12 @@ def counts(db_path: Path = DB_PATH) -> dict:
 
 
 def delete_demo_data(db_path: Path = DB_PATH) -> int:
-    with _connect(db_path) as conn:
+    with closing(_connect(db_path)) as conn, conn:
         cur = conn.execute("DELETE FROM decisions WHERE is_demo = 1")
         return cur.rowcount
 
 
 def delete_all_data(db_path: Path = DB_PATH) -> int:
-    with _connect(db_path) as conn:
+    with closing(_connect(db_path)) as conn, conn:
         cur = conn.execute("DELETE FROM decisions")
         return cur.rowcount

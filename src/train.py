@@ -136,7 +136,7 @@ def _candidate_models(cfg: AppConfig) -> dict:
 
 def train_pipeline(features: pd.DataFrame, feature_cols: list[str],
                    cfg: AppConfig, fingerprint: str,
-                   progress=None) -> dict:
+                   progress=None, code_version: str = "") -> dict:
     """Full training procedure. Returns the persisted bundle (also saved to
     models/rainfall_bundle.joblib)."""
     def _report(pct, msg):
@@ -223,6 +223,7 @@ def train_pipeline(features: pd.DataFrame, feature_cols: list[str],
         "split_ranges": split["ranges"],
         "split_counts": split["counts"],
         "config_key": cfg.model_key(),
+        "code_version": code_version,
         "fingerprint": fingerprint,
         "trained_at": pd.Timestamp.now().isoformat(),
     }
@@ -232,8 +233,10 @@ def train_pipeline(features: pd.DataFrame, feature_cols: list[str],
     return bundle
 
 
-def load_bundle(fingerprint: str, cfg: AppConfig) -> dict | None:
-    """Load the saved bundle if it matches the current dataset + config."""
+def load_bundle(fingerprint: str, cfg: AppConfig,
+                code_version: str = "") -> dict | None:
+    """Load the saved bundle if it matches the current dataset, config and
+    the version of the training code that produced it."""
     if not BUNDLE_PATH.exists():
         return None
     try:
@@ -243,5 +246,7 @@ def load_bundle(fingerprint: str, cfg: AppConfig) -> dict | None:
     if bundle.get("fingerprint") != fingerprint:
         return None
     if bundle.get("config_key") != cfg.model_key():
+        return None
+    if bundle.get("code_version") != code_version:
         return None
     return bundle

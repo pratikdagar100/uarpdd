@@ -13,7 +13,7 @@ configure_runtime()
 import streamlit as st  # noqa: E402
 
 from src.config import AppConfig, DATA_DIR  # noqa: E402
-from src.pipeline import run_pipeline  # noqa: E402
+from src.pipeline import dataset_cache_key, run_pipeline  # noqa: E402
 from views import theme as T  # noqa: E402
 from views import (warning, dashboard, explorer, performance, training,  # noqa: E402
                    study_run, study_results, about)
@@ -36,31 +36,48 @@ PAGES = [
 ]
 
 
+@st.cache_resource(show_spinner=False)
+def _get_global_state(config_key: str, dataset_key: str) -> dict:
+    """Loads the pipeline state globally across all user sessions.
+    If the disk cache (models/) is hot, this reads in ~1-2 seconds.
+
+    Both keys matter: config_key invalidates the cache when the training
+    configuration changes, dataset_key when the file in data/ is replaced or
+    uploaded. Without the latter a newly uploaded dataset is never picked up,
+    because an uploaded file changes nothing about the config.
+    """
+    # A fresh config is loaded in case it changed on disk; config_key is what
+    # decides whether this result is reused.
+    return run_pipeline(AppConfig.load(), progress=None, force_retrain=False)
+
+
 def _bootstrap() -> dict:
-    """First-run pipeline with a progress display; cached in session state
-    (heavy artifacts are additionally cached on disk in models/)."""
-    if "pipeline_state" in st.session_state:
-        return st.session_state["pipeline_state"]
-
+    """First-run pipeline with a progress display."""
     force = st.session_state.pop("force_retrain", False)
-    holder = st.empty()
-    with holder.container():
-        st.markdown(
-            '<div style="max-width:52ch;margin:14vh auto 0">'
-            '<div class="pg-title">Building the forecast pipeline</div>'
-            '<div class="pg-sub">This runs once for a new dataset or '
-            'configuration &mdash; a few minutes for around a million rows. '
-            'Everything is cached in <code>models/</code>, so later starts '
-            'take a second.</div></div>', unsafe_allow_html=True)
-        bar = st.progress(0.0, text="Starting pipeline…")
 
-    def progress(pct, msg):
-        bar.progress(min(1.0, pct), text=msg)
+    if force:
+        # Clear the global memory cache so it picks up the new disk artifacts later
+        st.cache_resource.clear()
+        holder = st.empty()
+        with holder.container():
+            st.markdown(
+                '<div style="max-width:52ch;margin:14vh auto 0">'
+                '<div class="pg-title">Building the forecast pipeline</div>'
+                '<div class="pg-sub">This runs once for a new dataset or '
+                'configuration &mdash; a few minutes for around a million rows. '
+                'Everything is cached in <code>models/</code>, so later starts '
+                'take a second.</div></div>', unsafe_allow_html=True)
+            bar = st.progress(0.0, text="Starting pipeline…")
 
-    state = run_pipeline(cfg, progress=progress, force_retrain=force)
-    holder.empty()
-    st.session_state["pipeline_state"] = state
-    return state
+        def progress(pct, msg):
+            bar.progress(min(1.0, pct), text=msg)
+
+        state = run_pipeline(cfg, progress=progress, force_retrain=True)
+        holder.empty()
+        return state
+
+    # Normal load: use the globally shared cached state to prevent memory leaks
+    return _get_global_state(cfg.model_key(), dataset_cache_key())
 
 
 def _sidebar(state: dict | None) -> str:
@@ -120,7 +137,6 @@ if state.get("error") == "no_dataset":
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         suffix = up.name.rsplit(".", 1)[-1].lower()
         (DATA_DIR / f"dataset.{suffix}").write_bytes(up.getbuffer())
-        st.session_state.pop("pipeline_state", None)
         st.rerun()
     st.stop()
 
